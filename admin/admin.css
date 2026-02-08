@@ -1,0 +1,665 @@
+/**
+ * Style dla panelu admina wtyczki Agencyjnie AI Images
+ */
+
+/* ===== Strona ustawień ===== */
+
+.aai-settings-wrap {
+    max-width: 800px;
+}
+
+.aai-settings-header {
+    background: #fff;
+    padding: 15px 20px;
+    margin: 20px 0;
+    border-left: 4px solid #2563eb;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.aai-settings-header p {
+    margin: 0;
+    font-size: 14px;
+    color: #555;
+}
+
+/* Pole API Key z przyciskiem testu */
+.aai-api-key-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 5px;
+}
+
+.aai-api-key-row input.regular-text {
+    flex: 0 0 auto;
+}
+
+.aai-test-btn {
+    background: #2563eb !important;
+    border-color: #2563eb !important;
+    color: #fff !important;
+}
+
+.aai-test-btn:hover {
+    background: #1d4ed8 !important;
+    border-color: #1d4ed8 !important;
+}
+
+.aai-test-btn:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+}
+
+/* Lista formuły obrazków */
+.aai-images-formula {
+    margin: 10px 0;
+    padding-left: 10px;
+    font-size: 12px;
+    color: #666;
+    list-style: none;
+}
+
+.aai-images-formula li {
+    margin: 3px 0;
+}
+
+/* Pola formularza */
+.form-table .aai-color-picker {
+    width: 50px;
+    height: 40px;
+    padding: 2px;
+    cursor: pointer;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+}
+
+.aai-colors-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 10px;
+}
+
+.aai-color-item {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.aai-remove-color {
+    padding: 2px 8px !important;
+    font-size: 16px !important;
+    line-height: 1 !important;
+    color: #dc3545 !important;
+    border-color: #dc3545 !important;
+}
+
+.aai-remove-color:hover {
+    background: #dc3545 !important;
+    color: #fff !important;
+}
+
+.aai-add-color {
+    margin-top: 5px;
+}
+
+/* Własny styl */
+.aai-custom-style-wrapper {
+    margin-top: 10px;
+}
+
+.aai-test-result {
+    display: inline-block;
+    font-weight: 500;
+    padding: 5px 10px;
+    border-radius: 4px;
+    font-size: 13px;
+    margin-top: 8px;
+}
+
+.aai-test-result.success {
+    color: #155724;
+    background: #d4edda;
+    border: 1px solid #28a745;
+}
+
+.aai-test-result.error {
+    color: #721c24;
+    background: #f8d7da;
+    border: 1px solid #dc3545;
+}
+
+.aai-test-result.loading {
+    color: #856404;
+    background: #fff3cd;
+    border: 1px solid #ffc107;
+}
+
+/* Wrapper dla API keys w źródłach obrazków */
+.aai-api-key-wrapper {
+    margin-top: 10px;
+    padding: 10px;
+    background: #f9f9f9;
+    border-radius: 4px;
+}
+
+.aai-api-key-wrapper .aai-api-key-row {
+    margin-bottom: 0;
+}
+
+.aai-api-key-wrapper .aai-test-result {
+    display: block;
+    margin-top: 8px;
+}
+
+/* ===== Meta box w edytorze ===== */
+
+.aai-meta-box-content {
+    padding: 10px 0;
+}
+
+.aai-notice {
+    padding: 10px;
+    margin-bottom: 15px;
+    border-radius: 4px;
+}
+
+.aai-notice-warning {
+    background: #fff3cd;
+    border: 1px solid #ffc107;
+}
+
+.aai-notice-warning p {
+    margin: 0;
+    color: #856404;
+}
+
+.aai-notice-warning a {
+    color: #856404;
+    font-weight: 500;
+}
+
+/* Podgląd obrazka */
+.aai-current-image {
+    margin-bottom: 15px;
+    text-align: center;
+}
+
+.aai-label {
+    font-weight: 600;
+    margin-bottom: 8px;
+    color: #333;
+    font-size: 12px;
+    text-transform: uppercase;
+}
+
+.aai-thumbnail-preview {
+    max-width: 100%;
+    height: auto;
+    border-radius: 4px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.aai-no-image {
+    padding: 30px 15px;
+    background: #f5f5f5;
+    border: 2px dashed #ddd;
+    border-radius: 4px;
+    text-align: center;
+    color: #888;
+    font-style: italic;
+}
+
+/* Przycisk generowania */
+.aai-generate-section {
+    margin-bottom: 15px;
+}
+
+.aai-generate-btn,
+.aai-generate-content-btn {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 10px 15px !important;
+    height: auto !important;
+    font-size: 13px !important;
+}
+
+.aai-generate-btn .spinner,
+.aai-generate-content-btn .spinner {
+    float: none;
+    margin: 0;
+}
+
+.aai-generate-btn.is-loading,
+.aai-generate-content-btn.is-loading {
+    opacity: 0.7;
+    pointer-events: none;
+}
+
+.aai-generate-btn.is-loading .spinner,
+.aai-generate-content-btn.is-loading .spinner {
+    display: inline-block !important;
+    visibility: visible;
+}
+
+.aai-generate-description {
+    margin-top: 8px !important;
+    font-size: 11px;
+    text-align: center;
+    color: #666;
+}
+
+/* Komunikaty */
+.aai-message {
+    padding: 10px;
+    border-radius: 4px;
+    margin-top: 10px;
+    font-size: 13px;
+}
+
+.aai-message.success {
+    background: #d4edda;
+    border: 1px solid #28a745;
+    color: #155724;
+}
+
+.aai-message.error {
+    background: #f8d7da;
+    border: 1px solid #dc3545;
+    color: #721c24;
+}
+
+.aai-message.info {
+    background: #e7f3ff;
+    border: 1px solid #2563eb;
+    color: #1e40af;
+}
+
+/* Sekcja debug */
+.aai-debug-section {
+    margin-top: 15px;
+    padding-top: 15px;
+    border-top: 1px solid #ddd;
+}
+
+.aai-toggle-prompt {
+    width: 100%;
+    font-size: 11px !important;
+}
+
+.aai-prompt-preview {
+    margin-top: 10px;
+}
+
+.aai-prompt-text {
+    background: #f5f5f5;
+    padding: 10px;
+    border-radius: 4px;
+    font-size: 11px;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+/* ===== Responsywność ===== */
+
+@media screen and (max-width: 782px) {
+    .aai-colors-container {
+        flex-direction: column;
+    }
+    
+    .aai-color-item {
+        width: 100%;
+    }
+    
+    .aai-color-picker {
+        flex: 1;
+    }
+}
+
+/* ===== Animacje ===== */
+
+@keyframes aai-pulse {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.5;
+    }
+}
+
+.aai-generating {
+    animation: aai-pulse 1.5s ease-in-out infinite;
+}
+
+/* Ukrycie niepotrzebnego footer */
+.aai-meta-box-content + .inside {
+    padding-bottom: 0;
+}
+
+/* ===== Wyświetlanie tokenów ===== */
+
+.aai-tokens-display {
+    margin-top: 15px;
+    padding: 10px;
+    background: #f0f7ff;
+    border: 1px solid #2563eb;
+    border-radius: 4px;
+}
+
+.aai-tokens-info {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.aai-tokens-label {
+    font-size: 11px;
+    font-weight: 600;
+    color: #1e40af;
+    text-transform: uppercase;
+}
+
+.aai-tokens-value {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.aai-token-item {
+    font-size: 12px;
+    color: #333;
+    background: #fff;
+    padding: 3px 8px;
+    border-radius: 3px;
+    border: 1px solid #ddd;
+}
+
+.aai-token-total {
+    font-weight: 600;
+    background: #2563eb;
+    color: #fff;
+    border-color: #2563eb;
+}
+
+/* ===== Sekcja obrazków w treści ===== */
+
+.aai-separator {
+    margin: 20px 0;
+    border: none;
+    border-top: 1px solid #ddd;
+}
+
+.aai-section-title {
+    font-weight: 600;
+    font-size: 12px;
+    text-transform: uppercase;
+    color: #333;
+    margin-bottom: 10px;
+}
+
+.aai-content-images-section {
+    margin-top: 10px;
+}
+
+.aai-generate-content-btn {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 8px 12px !important;
+    height: auto !important;
+    font-size: 12px !important;
+    background: #f0f7ff !important;
+    border-color: #2563eb !important;
+    color: #2563eb !important;
+}
+
+.aai-generate-content-btn:hover {
+    background: #e0efff !important;
+}
+
+.aai-generate-content-btn.is-loading {
+    opacity: 0.7;
+    pointer-events: none;
+}
+
+.aai-generate-content-btn.is-loading .spinner {
+    display: inline-block !important;
+    visibility: visible;
+}
+
+/* Progress bar */
+.aai-content-progress {
+    margin-top: 15px;
+}
+
+.aai-progress-bar {
+    height: 8px;
+    background: #e5e7eb;
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.aai-progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #2563eb, #10b981);
+    border-radius: 4px;
+    transition: width 0.3s ease;
+    width: 0%;
+}
+
+.aai-progress-text {
+    font-size: 11px;
+    color: #666;
+    margin-top: 5px;
+    text-align: center;
+}
+
+/* Animacja pulsowania dla progress */
+@keyframes aai-progress-pulse {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.6;
+    }
+}
+
+.aai-progress-fill.is-active {
+    animation: aai-progress-pulse 1s ease-in-out infinite;
+}
+
+/* ===== Sekcja źródeł obrazków ===== */
+
+.aai-api-key-wrapper {
+    margin-top: 10px;
+    padding: 10px;
+    background: #f9f9f9;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.aai-api-key-wrapper input {
+    flex: 1;
+}
+
+.aai-source-indicator {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 500;
+    text-transform: uppercase;
+}
+
+.aai-source-indicator.source-media_library {
+    background: #e8f5e9;
+    color: #2e7d32;
+}
+
+.aai-source-indicator.source-brandfetch {
+    background: #e3f2fd;
+    color: #1565c0;
+}
+
+.aai-source-indicator.source-unsplash {
+    background: #fce4ec;
+    color: #c2185b;
+}
+
+.aai-source-indicator.source-pexels {
+    background: #fff3e0;
+    color: #e65100;
+}
+
+.aai-source-indicator.source-ai_generated {
+    background: #f3e5f5;
+    color: #7b1fa2;
+}
+
+.aai-source-indicator.source-screenshot {
+    background: #e0f7fa;
+    color: #00838f;
+}
+
+/* ===== Panel Review ===== */
+
+.aai-review-panel {
+    margin-top: 15px;
+    background: #fff;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    padding: 15px;
+}
+
+.aai-review-title {
+    font-weight: 600;
+    font-size: 14px;
+    margin-bottom: 15px;
+    color: #333;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.aai-review-list {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    max-height: 400px;
+    overflow-y: auto;
+    padding-right: 5px;
+}
+
+.aai-review-item {
+    background: #f9f9f9;
+    border: 1px solid #eee;
+    border-radius: 4px;
+    padding: 12px;
+    position: relative;
+}
+
+.aai-review-item-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+.aai-review-location {
+    font-size: 12px;
+    font-weight: 600;
+    color: #2563eb;
+}
+
+.aai-review-remove {
+    color: #dc3545;
+    cursor: pointer;
+    font-size: 18px;
+    line-height: 1;
+    padding: 2px;
+}
+
+.aai-review-remove:hover {
+    color: #a71d2a;
+}
+
+.aai-review-prompt-label {
+    font-size: 11px;
+    font-weight: 600;
+    color: #666;
+    margin-bottom: 4px;
+    display: block;
+}
+
+.aai-review-prompt {
+    width: 100%;
+    min-height: 60px;
+    font-size: 12px;
+    padding: 8px;
+    border: 1px solid #ddd;
+    border-radius: 3px;
+    margin-bottom: 5px;
+}
+
+.aai-review-negative-prompt {
+    width: 100%;
+    font-size: 12px;
+    padding: 6px 8px;
+    border: 1px solid #ddd;
+    border-radius: 3px;
+    margin-bottom: 10px;
+    background: #fff5f5;
+    border-color: #fc8181;
+}
+
+.aai-review-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 5px;
+}
+
+.aai-review-tag {
+    font-size: 10px;
+    background: #e0e7ff;
+    color: #1e40af;
+    padding: 2px 6px;
+    border-radius: 3px;
+}
+
+.aai-review-actions {
+    margin-top: 15px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.aai-review-actions .button {
+    width: 100%;
+    justify-content: center;
+}
+
+.aai-review-btn-confirm {
+    background: #2563eb !important;
+    color: #fff !important;
+    border-color: #2563eb !important;
+}
+
+.aai-review-btn-confirm:hover {
+    background: #1d4ed8 !important;
+}
+
+/* Stare style dla osobnych przycisków - usunięte, teraz mamy jeden dynamiczny przycisk */

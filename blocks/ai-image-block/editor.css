@@ -1,0 +1,86 @@
+/**
+ * Editor styles for AI Image block
+ */
+
+.aai-block-ai-image {
+    position: relative;
+}
+
+.aai-block-ai-image .components-placeholder {
+    min-height: 200px;
+}
+
+.aai-block-ai-image .components-placeholder__fieldset {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    width: 100%;
+    max-width: 400px;
+}
+
+.aai-block-ai-image .components-placeholder__fieldset .components-textarea-control__input {
+    width: 100%;
+}
+
+.aai-block-figure {
+    position: relative;
+    margin: 0;
+    overflow: hidden;
+    border-radius: 4px;
+}
+
+.aai-block-image {
+    display: block;
+    width: 100%;
+    height: auto;
+}
+
+.aai-block-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+}
+
+.aai-block-figure:hover .aai-block-overlay {
+    opacity: 1;
+}
+
+.aai-block-btn {
+    background: #fff !important;
+}
+
+.aai-block-error {
+    color: #cc1818;
+    font-size: 13px;
+    margin-top: 10px;
+    padding: 8px 12px;
+    background: #ffe6e6;
+    border-radius: 4px;
+}
+
+.aai-block-success {
+    color: #1e7e34;
+    font-size: 13px;
+    margin-top: 10px;
+    padding: 8px 12px;
+    background: #d4edda;
+    border-radius: 4px;
+    position: absolute;
+    bottom: 10px;
+    left: 10px;
+    right: 10px;
+}
+
+/* Spinner alignment */
+.aai-block-ai-image .components-button .components-spinner {
+    margin-right: 8px;
+}

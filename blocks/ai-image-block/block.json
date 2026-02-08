@@ -1,0 +1,56 @@
+{
+    "$schema": "https://schemas.wp.org/trunk/block.json",
+    "apiVersion": 3,
+    "name": "aai/ai-image",
+    "version": "1.0.0",
+    "title": "AI Image",
+    "category": "media",
+    "icon": "format-image",
+    "description": "Generuj obrazek AI z własnym promptem.",
+    "keywords": [
+        "ai",
+        "image",
+        "gemini",
+        "dalle",
+        "obrazek"
+    ],
+    "supports": {
+        "html": false,
+        "align": [
+            "wide",
+            "full",
+            "center"
+        ]
+    },
+    "textdomain": "agencyjnie-ai-images",
+    "attributes": {
+        "customPrompt": {
+            "type": "string",
+            "default": ""
+        },
+        "attachmentId": {
+            "type": "number",
+            "default": 0
+        },
+        "imageUrl": {
+            "type": "string",
+            "default": ""
+        },
+        "imageAlt": {
+            "type": "string",
+            "default": ""
+        },
+        "overrideStyle": {
+            "type": "boolean",
+            "default": false
+        },
+        "artStyle": {
+            "type": "string",
+            "default": ""
+        },
+        "aspectRatio": {
+            "type": "string",
+            "default": ""
+        }
+    }
+}
