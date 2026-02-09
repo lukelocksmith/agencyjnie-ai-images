@@ -71,7 +71,7 @@ function aai_generate_alt_text( $prompt, $context_text = '', $lang = 'pl' ) {
     - Output ONLY the ALT text, no quotation marks or explanations.";
     
     // Wywołaj Gemini API (model tekstowy)
-    $api_url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent';
+    $api_url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent';
 
     $request_body = array(
         'contents' => array(
@@ -151,6 +151,12 @@ function aai_generate_image_gemini( $prompt, $aspect_ratio = null ) {
             'imageConfig' => array(
                 'aspectRatio' => $aspect_ratio,
             ),
+        ),
+        'safetySettings' => array(
+            array( 'category' => 'HARM_CATEGORY_HARASSMENT', 'threshold' => 'BLOCK_ONLY_HIGH' ),
+            array( 'category' => 'HARM_CATEGORY_HATE_SPEECH', 'threshold' => 'BLOCK_ONLY_HIGH' ),
+            array( 'category' => 'HARM_CATEGORY_SEXUALLY_EXPLICIT', 'threshold' => 'BLOCK_ONLY_HIGH' ),
+            array( 'category' => 'HARM_CATEGORY_DANGEROUS_CONTENT', 'threshold' => 'BLOCK_ONLY_HIGH' ),
         ),
     );
     
@@ -357,7 +363,7 @@ function aai_test_api_connection() {
     }
 
     // Prosty test - sprawdzamy czy API odpowiada
-    $api_url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent';
+    $api_url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent';
 
     $request_body = array(
         'contents' => array(
