@@ -72,6 +72,10 @@ class AAI_GitHub_Updater {
         // Sprawdź cache (transient na 6h)
         $cached = get_transient( 'aai_github_update_data' );
         if ( false !== $cached ) {
+            if ( 'no_data' === $cached || ! is_object( $cached ) || ! isset( $cached->tag_name ) ) {
+                $this->github_response = false;
+                return false;
+            }
             $this->github_response = $cached;
             return $cached;
         }
@@ -110,14 +114,14 @@ class AAI_GitHub_Updater {
 
             if ( is_wp_error( $response ) || 200 !== wp_remote_retrieve_response_code( $response ) ) {
                 $this->github_response = false;
-                set_transient( 'aai_github_update_data', false, HOUR_IN_SECONDS );
+                set_transient( 'aai_github_update_data', 'no_data', HOUR_IN_SECONDS );
                 return false;
             }
 
             $tags = json_decode( wp_remote_retrieve_body( $response ) );
             if ( empty( $tags ) || ! is_array( $tags ) ) {
                 $this->github_response = false;
-                set_transient( 'aai_github_update_data', false, HOUR_IN_SECONDS );
+                set_transient( 'aai_github_update_data', 'no_data', HOUR_IN_SECONDS );
                 return false;
             }
 
@@ -135,7 +139,7 @@ class AAI_GitHub_Updater {
 
         if ( empty( $data ) || ! isset( $data->tag_name ) ) {
             $this->github_response = false;
-            set_transient( 'aai_github_update_data', false, HOUR_IN_SECONDS );
+            set_transient( 'aai_github_update_data', 'no_data', HOUR_IN_SECONDS );
             return false;
         }
 
