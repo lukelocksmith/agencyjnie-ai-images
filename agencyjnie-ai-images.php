@@ -30,6 +30,7 @@ function aai_load_includes() {
     require_once AAI_PLUGIN_DIR . 'includes/ai-service.php'; // Zmieniono z gemini-api.php
     require_once AAI_PLUGIN_DIR . 'includes/prompt-builder.php';
     require_once AAI_PLUGIN_DIR . 'includes/meta-box.php';
+    require_once AAI_PLUGIN_DIR . 'includes/bulk-actions.php';
     // DISABLED: Dodatkowe źródła obrazów (tymczasowo wyłączone — focus na core AI generation)
     // require_once AAI_PLUGIN_DIR . 'includes/content-images.php';
     // require_once AAI_PLUGIN_DIR . 'includes/image-sources.php';
@@ -40,8 +41,8 @@ add_action( 'plugins_loaded', 'aai_load_includes' );
  * Ładowanie skryptów i stylów w panelu admina
  */
 function aai_admin_enqueue_scripts( $hook ) {
-    // Ładuj tylko na stronach edycji postów i ustawień wtyczki
-    $allowed_hooks = array( 'post.php', 'post-new.php', 'settings_page_agencyjnie-ai-images' );
+    // Ładuj na stronach edycji postów, ustawień wtyczki i liście wpisów (bulk actions)
+    $allowed_hooks = array( 'post.php', 'post-new.php', 'settings_page_agencyjnie-ai-images', 'edit.php' );
     
     if ( ! in_array( $hook, $allowed_hooks, true ) ) {
         return;
@@ -63,7 +64,7 @@ function aai_admin_enqueue_scripts( $hook ) {
     );
     
     // Przekazanie danych do JavaScript
-    wp_localize_script( 'aai-admin-js', 'aaiData', array(
+    $localize_data = array(
         'ajaxUrl'  => admin_url( 'admin-ajax.php' ),
         'nonce'    => wp_create_nonce( 'aai_generate_image' ),
         'strings'  => array(
@@ -73,7 +74,14 @@ function aai_admin_enqueue_scripts( $hook ) {
             'noApiKey'     => __( 'Brak klucza API. Skonfiguruj wtyczkę w ustawieniach.', 'agencyjnie-ai-images' ),
             'confirmReplace' => __( 'Post ma już featured image. Czy chcesz go zastąpić?', 'agencyjnie-ai-images' ),
         ),
-    ) );
+    );
+    
+    // Dodaj dane dla bulk generate jeśli jesteśmy na ekranie listy wpisów
+    if ( $hook === 'edit.php' ) {
+        $localize_data['bulkNonce'] = wp_create_nonce( 'aai_bulk_generate' );
+    }
+    
+    wp_localize_script( 'aai-admin-js', 'aaiData', $localize_data );
 }
 add_action( 'admin_enqueue_scripts', 'aai_admin_enqueue_scripts' );
 
