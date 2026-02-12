@@ -67,6 +67,14 @@ function aai_register_settings() {
         'aai_api_section'
     );
     
+    add_settings_field(
+        'github_token',
+        __( 'GitHub Token (auto-aktualizacje)', 'agencyjnie-ai-images' ),
+        'aai_render_github_token_field',
+        'agencyjnie-ai-images',
+        'aai_api_section'
+    );
+    
     // Sekcja: Styl obrazków
     add_settings_section(
         'aai_style_section',
@@ -360,6 +368,40 @@ function aai_render_dalle_quality_field() {
     </select>
     <p class="description">
         <?php esc_html_e( 'Dotyczy tylko DALL-E 3. HD ma więcej detali ale kosztuje ~50% więcej.', 'agencyjnie-ai-images' ); ?>
+    </p>
+    <?php
+}
+
+/**
+ * Pole: GitHub Token (auto-aktualizacje)
+ */
+function aai_render_github_token_field() {
+    $token = aai_get_option( 'github_token', '' );
+    $display_token = ! empty( $token ) ? str_repeat( '*', 20 ) : '';
+    ?>
+    <div class="aai-api-key-row">
+        <input 
+            type="password" 
+            id="aai_github_token" 
+            name="aai_options[github_token]" 
+            value="<?php echo esc_attr( $display_token ); ?>" 
+            class="regular-text"
+            autocomplete="off"
+            placeholder="<?php echo ! empty( $token ) ? esc_attr__( 'Zmień token...', 'agencyjnie-ai-images' ) : esc_attr__( 'ghp_...', 'agencyjnie-ai-images' ); ?>"
+        />
+        <button type="button" class="button aai-toggle-password" data-target="aai_github_token">
+            <?php esc_html_e( 'Pokaż/Ukryj', 'agencyjnie-ai-images' ); ?>
+        </button>
+    </div>
+    <p class="description">
+        <?php 
+        printf(
+            esc_html__( 'Wymagany dla prywatnych repozytoriów. Utwórz token z uprawnieniem "repo". %s', 'agencyjnie-ai-images' ),
+            '<a href="https://github.com/settings/tokens/new?scopes=repo&description=Agencyjnie+AI+Images+Updater" target="_blank">' . esc_html__( 'Utwórz token', 'agencyjnie-ai-images' ) . '</a>'
+        );
+        ?>
+        <br>
+        <strong><?php esc_html_e( 'Aktualna wersja:', 'agencyjnie-ai-images' ); ?></strong> <?php echo esc_html( AAI_VERSION ); ?>
     </p>
     <?php
 }
@@ -927,7 +969,7 @@ function aai_sanitize_options( $input ) {
     }
     
     // Inne klucze API (Urlbox, Unsplash, Pexels, Brandfetch)
-    $api_keys = array( 'urlbox_api_key', 'unsplash_api_key', 'pexels_api_key', 'brandfetch_api_key' );
+    $api_keys = array( 'urlbox_api_key', 'unsplash_api_key', 'pexels_api_key', 'brandfetch_api_key', 'github_token' );
     foreach ( $api_keys as $key ) {
         if ( isset( $input[ $key ] ) ) {
             if ( strpos( $input[ $key ], '***' ) !== false ) {
