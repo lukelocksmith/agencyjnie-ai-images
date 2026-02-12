@@ -3,7 +3,7 @@
  * Plugin Name: Agencyjnie AI Images
  * Plugin URI: https://agencyjnie.pl
  * Description: Automatyczne generowanie featured images przy użyciu Google Gemini AI
- * Version: 1.1.0
+ * Version: 1.2.0
  * Author: Agencyjnie
  * Author URI: https://agencyjnie.pl
  * License: GPL v2 or later
@@ -16,7 +16,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 // Stałe wtyczki
-define( 'AAI_VERSION', '1.1.0' );
+define( 'AAI_VERSION', '1.2.0' );
 define( 'AAI_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'AAI_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 define( 'AAI_PLUGIN_BASENAME', plugin_basename( __FILE__ ) );

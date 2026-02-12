@@ -339,15 +339,22 @@ function aai_render_ai_model_field() {
     $model = aai_get_option( 'ai_model', 'gemini' );
     ?>
     <select id="aai_ai_model" name="aai_options[ai_model]">
-        <option value="gemini" <?php selected( $model, 'gemini' ); ?>>
-            <?php esc_html_e( 'Gemini 2.5 Flash (Google)', 'agencyjnie-ai-images' ); ?>
-        </option>
-        <option value="dalle3" <?php selected( $model, 'dalle3' ); ?>>
-            <?php esc_html_e( 'DALL-E 3 (OpenAI)', 'agencyjnie-ai-images' ); ?>
-        </option>
+        <optgroup label="Google Gemini">
+            <option value="gemini" <?php selected( $model, 'gemini' ); ?>>
+                <?php esc_html_e( 'Gemini 2.5 Flash Image — szybki, tani', 'agencyjnie-ai-images' ); ?>
+            </option>
+            <option value="gemini-pro" <?php selected( $model, 'gemini-pro' ); ?>>
+                <?php esc_html_e( 'Gemini 2.5 Pro — najwyższa jakość ✨', 'agencyjnie-ai-images' ); ?>
+            </option>
+        </optgroup>
+        <optgroup label="OpenAI">
+            <option value="dalle3" <?php selected( $model, 'dalle3' ); ?>>
+                <?php esc_html_e( 'DALL-E 3 — dobry tekst na obrazkach', 'agencyjnie-ai-images' ); ?>
+            </option>
+        </optgroup>
     </select>
     <p class="description">
-        <?php esc_html_e( 'Gemini: szybszy, tańszy, czasem problemy z tekstem. DALL-E 3: lepszy tekst, droższy (~$0.04-0.12/obrazek).', 'agencyjnie-ai-images' ); ?>
+        <?php esc_html_e( 'Flash: ~$0.01/obr, szybki. Pro: ~$0.05/obr, najlepsza jakość. DALL-E 3: ~$0.04–0.12/obr, lepszy tekst.', 'agencyjnie-ai-images' ); ?>
     </p>
     <?php
 }

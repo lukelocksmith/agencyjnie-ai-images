@@ -23,7 +23,14 @@ function aai_generate_image( $prompt, $aspect_ratio = null ) {
         return aai_generate_image_dalle( $prompt, $aspect_ratio );
     }
 
-    return aai_generate_image_gemini( $prompt, $aspect_ratio );
+    // Mapowanie ustawień na nazwy modeli Gemini
+    $gemini_models = array(
+        'gemini'     => 'gemini-2.5-flash-image',
+        'gemini-pro' => 'gemini-2.5-pro-preview-06-05',
+    );
+    $gemini_model = isset( $gemini_models[ $model ] ) ? $gemini_models[ $model ] : 'gemini-2.5-flash-image';
+
+    return aai_generate_image_gemini( $prompt, $aspect_ratio, $gemini_model );
 }
 
 /**
@@ -115,7 +122,7 @@ function aai_generate_alt_text( $prompt, $context_text = '', $lang = 'pl' ) {
  * @param string $prompt Prompt do wygenerowania obrazka
  * @return array|WP_Error Tablica z danymi obrazka lub błąd
  */
-function aai_generate_image_gemini( $prompt, $aspect_ratio = null ) {
+function aai_generate_image_gemini( $prompt, $aspect_ratio = null, $gemini_model = 'gemini-2.5-flash-image' ) {
     $api_key = aai_get_secure_option( 'api_key' );
 
     if ( empty( $api_key ) ) {
@@ -126,8 +133,8 @@ function aai_generate_image_gemini( $prompt, $aspect_ratio = null ) {
         return new WP_Error( 'empty_prompt', __( 'Prompt nie może być pusty.', 'agencyjnie-ai-images' ) );
     }
 
-    // Endpoint Gemini API dla generowania obrazów
-    $api_url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent';
+    // Endpoint Gemini API z dynamicznym modelem
+    $api_url = 'https://generativelanguage.googleapis.com/v1beta/models/' . $gemini_model . ':generateContent';
 
     // Pobierz aspect ratio z parametru lub z ustawień
     if ( $aspect_ratio === null ) {
