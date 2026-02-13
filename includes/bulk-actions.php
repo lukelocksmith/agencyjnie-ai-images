@@ -2,7 +2,7 @@
 /**
  * Bulk Actions - Masowe generowanie AI Featured Image z listy wpisów
  *
- * @package Agencyjnie_AI_Images
+ * @package AI_Images
  */
 
 if ( ! defined( 'ABSPATH' ) ) {

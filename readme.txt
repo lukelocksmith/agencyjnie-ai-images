@@ -1,9 +1,9 @@
-=== Agencyjnie AI Images ===
+=== AI Images ===
 Contributors: agencyjnie
-Tags: ai, images, featured image, gemini, google ai, automatic images
-Requires at least: 5.0
-Tested up to: 6.4
-Stable tag: 1.3.1
+Tags: ai, images, featured image, gemini, dalle, automatic images, gutenberg
+Requires at least: 5.8
+Tested up to: 6.7
+Stable tag: 1.4.0
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -12,8 +12,8 @@ Automatyczne generowanie featured images przy użyciu Google Gemini AI na podsta
 
 == Description ==
 
-Wtyczka Agencyjnie AI Images automatyzuje proces tworzenia obrazków wyróżniających dla Twoich artykułów. 
-Wykorzystuje Google Gemini AI do generowania unikalnych obrazków dopasowanych do treści.
+Wtyczka AI Images automatyzuje proces tworzenia obrazków wyróżniających dla Twoich artykułów.
+Wykorzystuje Google Gemini AI lub DALL-E 3 do generowania unikalnych obrazków dopasowanych do treści.
 
 **Główne funkcje:**
 
@@ -49,6 +49,14 @@ Google Gemini API ma darmowy limit. Szczegóły znajdziesz w dokumentacji Google
 Obrazki są zapisywane w formacie PNG.
 
 == Changelog ==
+
+= 1.4.0 =
+* Renamed plugin from "Agencyjnie AI Images" to "AI Images"
+* Fixed XSS vulnerability in admin.js image preview
+* Fixed model validation bug — Gemini Pro selection now saves correctly
+* Fixed double API key sanitization overwriting encrypted keys
+* Removed ~40% dead code (content images, image sources, disabled API tests)
+* Updated documentation
 
 = 1.3.1 =
 * Fixed critical PHP syntax error in `ai-service.php`

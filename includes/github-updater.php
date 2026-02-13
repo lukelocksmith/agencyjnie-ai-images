@@ -5,7 +5,7 @@
  * Sprawdza najnowszy tag/release na GitHubie i wyświetla aktualizację
  * w WordPress Admin jak każda inna wtyczka.
  *
- * @package Agencyjnie_AI_Images
+ * @package AI_Images
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -237,12 +237,12 @@ class AAI_GitHub_Updater {
         $remote_version = $this->normalize_version( $github_data->tag_name );
 
         $plugin_info = (object) array(
-            'name'          => 'Agencyjnie AI Images',
+            'name'          => 'AI Images',
             'slug'          => $this->plugin_slug,
             'version'       => $remote_version,
-            'author'        => '<a href="https://agencyjnie.pl">Agencyjnie</a>',
+            'author'        => '<a href="https://important.is">important.is</a>',
             'homepage'      => sprintf( 'https://github.com/%s/%s', $this->github_user, $this->github_repo ),
-            'short_description' => 'Automatyczne generowanie featured images przy użyciu Google Gemini AI.',
+            'short_description' => 'Automatyczne generowanie featured images przy użyciu AI (Gemini / DALL-E 3).',
             'sections'      => array(
                 'description' => 'Automatyczne generowanie featured images przy użyciu AI (Gemini / DALL-E 3). Obsługuje masowe generowanie z listy wpisów.',
                 'changelog'   => $this->format_changelog( $github_data ),
