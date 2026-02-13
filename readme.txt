@@ -3,7 +3,7 @@ Contributors: agencyjnie
 Tags: ai, images, featured image, gemini, dalle, automatic images, gutenberg
 Requires at least: 5.8
 Tested up to: 6.7
-Stable tag: 1.4.1
+Stable tag: 1.4.2
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -49,6 +49,9 @@ Google Gemini API ma darmowy limit. Szczegóły znajdziesz w dokumentacji Google
 Obrazki są zapisywane w formacie PNG.
 
 == Changelog ==
+
+= 1.4.2 =
+* Fixed Gemini Pro model — updated to gemini-3-pro-image-preview (old preview expired)
 
 = 1.4.1 =
 * Fixed GitHub auto-updater — folder rename now works correctly

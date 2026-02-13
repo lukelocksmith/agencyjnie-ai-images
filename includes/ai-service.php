@@ -26,7 +26,7 @@ function aai_generate_image( $prompt, $aspect_ratio = null, $system_instruction 
     // Mapowanie ustawień na nazwy modeli Gemini
     $gemini_models = array(
         'gemini'     => 'gemini-2.5-flash-image', // Default (Flash)
-        'gemini-pro' => 'gemini-2.5-pro-preview-06-05', // Pro
+        'gemini-pro' => 'gemini-3-pro-image-preview', // Pro (Gemini 3)
         'imagen3'    => 'imagen-3.0-generate-001', // Imagen 3 (Specialized)
     );
     $gemini_model = isset( $gemini_models[ $model ] ) ? $gemini_models[ $model ] : 'gemini-2.5-flash-image';
