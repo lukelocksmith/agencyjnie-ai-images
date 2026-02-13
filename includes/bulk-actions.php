@@ -107,8 +107,11 @@ function aai_ajax_bulk_generate() {
         wp_send_json_error( array( 'message' => 'Nie udało się zbudować promptu. Sprawdź czy post ma tytuł.' ) );
     }
     
+    // System instruction
+    $system_instruction = function_exists( 'aai_get_system_instruction' ) ? aai_get_system_instruction( $post_id ) : null;
+
     // Generowanie obrazka
-    $result = aai_generate_image( $prompt );
+    $result = aai_generate_image( $prompt, null, $system_instruction );
     
     if ( is_wp_error( $result ) ) {
         wp_send_json_error( array( 'message' => $result->get_error_message() ) );

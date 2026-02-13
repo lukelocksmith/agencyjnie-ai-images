@@ -3,7 +3,7 @@ Contributors: agencyjnie
 Tags: ai, images, featured image, gemini, google ai, automatic images
 Requires at least: 5.0
 Tested up to: 6.4
-Stable tag: 1.0.0
+Stable tag: 1.3.1
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -23,6 +23,8 @@ Wykorzystuje Google Gemini AI do generowania unikalnych obrazków dopasowanych d
 * Wybór dominujących kolorów
 * Prompt bazowy określający ogólny styl
 * Różne proporcje obrazka (16:9, 4:3, 1:1, itd.)
+* **NEW** Reference Images (Multimodal) - upload up to 3 images to guide the style
+* **NEW** GitHub Auto-Updater
 
 == Installation ==
 
@@ -47,6 +49,18 @@ Google Gemini API ma darmowy limit. Szczegóły znajdziesz w dokumentacji Google
 Obrazki są zapisywane w formacie PNG.
 
 == Changelog ==
+
+= 1.3.1 =
+* Fixed critical PHP syntax error in `ai-service.php`
+* Fixed JS syntax errors in `admin.js` preventing button functionality
+* Improved "No Text" mode adherence using System Instructions
+* Added fallback for API connection issues
+
+= 1.3.0 =
+* Added Reference Images feature (Gemini Multimodal)
+* Added GitHub Auto-Updater
+* Added Model selection (Flash, Pro, Imagen 3, DALL-E 3)
+* Updated author to important.is
 
 = 1.0.0 =
 * Pierwsza wersja wtyczki

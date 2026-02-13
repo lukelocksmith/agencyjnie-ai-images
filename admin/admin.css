@@ -312,11 +312,11 @@
     .aai-colors-container {
         flex-direction: column;
     }
-    
+
     .aai-color-item {
         width: 100%;
     }
-    
+
     .aai-color-picker {
         flex: 1;
     }
@@ -325,9 +325,12 @@
 /* ===== Animacje ===== */
 
 @keyframes aai-pulse {
-    0%, 100% {
+
+    0%,
+    100% {
         opacity: 1;
     }
+
     50% {
         opacity: 0.5;
     }
@@ -338,7 +341,7 @@
 }
 
 /* Ukrycie niepotrzebnego footer */
-.aai-meta-box-content + .inside {
+.aai-meta-box-content+.inside {
     padding-bottom: 0;
 }
 
@@ -464,9 +467,12 @@
 
 /* Animacja pulsowania dla progress */
 @keyframes aai-progress-pulse {
-    0%, 100% {
+
+    0%,
+    100% {
         opacity: 1;
     }
+
     50% {
         opacity: 0.6;
     }
@@ -922,4 +928,56 @@
 
 .aai-bulk-actions .button-primary:disabled {
     opacity: 0.6;
+}
+
+/* ===== Obrazki referencyjne ===== */
+
+.aai-reference-images-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 15px;
+    margin-bottom: 15px;
+}
+
+.aai-reference-image-item {
+    position: relative;
+    width: 150px;
+    height: 150px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    overflow: hidden;
+    background: #f0f0f1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.aai-reference-image-item img {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: cover;
+}
+
+.aai-remove-reference-image {
+    position: absolute;
+    top: 5px;
+    right: 5px;
+    width: 24px !important;
+    height: 24px !important;
+    padding: 0 !important;
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255, 255, 255, 0.8) !important;
+    color: #dc3545 !important;
+    border: 1px solid #dc3545 !important;
+    border-radius: 50% !important;
+    cursor: pointer;
+    font-size: 16px !important;
+    line-height: 1 !important;
+}
+
+.aai-remove-reference-image:hover {
+    background: #dc3545 !important;
+    color: #fff !important;
 }

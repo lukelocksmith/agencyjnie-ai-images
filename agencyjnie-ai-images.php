@@ -1,11 +1,11 @@
 <?php
 /**
- * Plugin Name: Agencyjnie AI Images
+ * Plugin Name: AI Images
  * Plugin URI: https://agencyjnie.pl
  * Description: Automatyczne generowanie featured images przy użyciu Google Gemini AI
- * Version: 1.2.0
- * Author: Agencyjnie
- * Author URI: https://agencyjnie.pl
+ * Version: 1.3.1
+ * Author: important.is
+ * Author URI: https://important.is
  * License: GPL v2 or later
  * Text Domain: agencyjnie-ai-images
  */
@@ -16,7 +16,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 // Stałe wtyczki
-define( 'AAI_VERSION', '1.2.0' );
+define( 'AAI_VERSION', '1.3.1' );
 define( 'AAI_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'AAI_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 define( 'AAI_PLUGIN_BASENAME', plugin_basename( __FILE__ ) );
@@ -55,6 +55,8 @@ function aai_admin_enqueue_scripts( $hook ) {
         array(),
         AAI_VERSION
     );
+
+    wp_enqueue_media();
     
     wp_enqueue_script(
         'aai-admin-js',
@@ -129,8 +131,11 @@ function aai_ajax_generate_image() {
         wp_send_json_error( array( 'message' => __( 'Nie udało się zbudować promptu. Sprawdź czy post ma tytuł.', 'agencyjnie-ai-images' ) ) );
     }
     
+    // System instruction (dla lepszej kontroli tekstu)
+    $system_instruction = function_exists( 'aai_get_system_instruction' ) ? aai_get_system_instruction( $post_id ) : null;
+
     // Generowanie obrazka przez API
-    $result = aai_generate_image( $prompt );
+    $result = aai_generate_image( $prompt, null, $system_instruction );
     
     if ( is_wp_error( $result ) ) {
         wp_send_json_error( array( 'message' => $result->get_error_message() ) );

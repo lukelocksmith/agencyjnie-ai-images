@@ -16,7 +16,7 @@ require_once __DIR__ . '/dalle-api.php';
  * @param string $prompt Prompt do wygenerowania obrazka
  * @return array|WP_Error Tablica z danymi obrazka lub błąd
  */
-function aai_generate_image( $prompt, $aspect_ratio = null ) {
+function aai_generate_image( $prompt, $aspect_ratio = null, $system_instruction = null ) {
     $model = aai_get_option( 'ai_model', 'gemini' );
 
     if ( $model === 'dalle3' ) {
@@ -25,12 +25,14 @@ function aai_generate_image( $prompt, $aspect_ratio = null ) {
 
     // Mapowanie ustawień na nazwy modeli Gemini
     $gemini_models = array(
-        'gemini'     => 'gemini-2.5-flash-image',
-        'gemini-pro' => 'gemini-2.5-pro-preview-06-05',
+        'gemini'     => 'gemini-2.5-flash-image', // Default (Flash)
+        'gemini-pro' => 'gemini-2.5-pro-preview-06-05', // Pro
+        'imagen3'    => 'imagen-3.0-generate-001', // Imagen 3 (Specialized)
     );
     $gemini_model = isset( $gemini_models[ $model ] ) ? $gemini_models[ $model ] : 'gemini-2.5-flash-image';
 
-    return aai_generate_image_gemini( $prompt, $aspect_ratio, $gemini_model );
+    // Pass system instruction if available
+    return aai_generate_image_gemini( $prompt, $aspect_ratio, $gemini_model, $system_instruction );
 }
 
 /**
@@ -122,7 +124,7 @@ function aai_generate_alt_text( $prompt, $context_text = '', $lang = 'pl' ) {
  * @param string $prompt Prompt do wygenerowania obrazka
  * @return array|WP_Error Tablica z danymi obrazka lub błąd
  */
-function aai_generate_image_gemini( $prompt, $aspect_ratio = null, $gemini_model = 'gemini-2.5-flash-image' ) {
+function aai_generate_image_gemini( $prompt, $aspect_ratio = null, $gemini_model = 'gemini-2.5-flash-image', $system_instruction = null ) {
     $api_key = aai_get_secure_option( 'api_key' );
 
     if ( empty( $api_key ) ) {
@@ -146,10 +148,13 @@ function aai_generate_image_gemini( $prompt, $aspect_ratio = null, $gemini_model
         'contents' => array(
             array(
                 'role' => 'user',
-                'parts' => array(
+                'parts' => array_merge(
+                    aai_get_processed_reference_images(),
                     array(
-                        'text' => $prompt,
-                    ),
+                        array(
+                            'text' => $prompt,
+                        ),
+                    )
                 ),
             ),
         ),
@@ -166,6 +171,15 @@ function aai_generate_image_gemini( $prompt, $aspect_ratio = null, $gemini_model
             array( 'category' => 'HARM_CATEGORY_DANGEROUS_CONTENT', 'threshold' => 'BLOCK_ONLY_HIGH' ),
         ),
     );
+
+    // Dodaj System Instruction jeśli dostępna
+    if ( ! empty( $system_instruction ) ) {
+        $request_body['systemInstruction'] = array(
+            'parts' => array(
+                array( 'text' => $system_instruction )
+            )
+        );
+    }
     
     // Wykonanie requestu (klucz API w headerze zamiast query string)
     $response = wp_remote_post( $api_url, array(
@@ -640,3 +654,58 @@ function aai_test_brandfetch_connection() {
     }
 }
 // DISABLED: add_action( 'wp_ajax_aai_test_brandfetch', 'aai_test_brandfetch_connection' );
+
+/**
+ * Helper: Przygotowanie obrazków referencyjnych dla Gemini API
+ */
+function aai_get_processed_reference_images() {
+    $parts = array();
+    
+    // Pobierz obrazki z opcji
+    $reference_images = aai_get_option( 'reference_images', array() );
+    
+    // Upewnij się że to tablica i ma elementy
+    if ( empty( $reference_images ) || ! is_array( $reference_images ) ) {
+        return $parts;
+    }
+    
+    // Limit 3
+    $reference_images = array_slice( $reference_images, 0, 3 );
+    
+    foreach ( $reference_images as $img_url ) {
+        // Pobierz obrazek
+        $response = wp_remote_get( $img_url, array( 'timeout' => 15, 'sslverify' => false ) );
+        
+        if ( is_wp_error( $response ) || wp_remote_retrieve_response_code( $response ) !== 200 ) {
+            continue;
+        }
+        
+        $image_content = wp_remote_retrieve_body( $response );
+        $content_type = wp_remote_retrieve_header( $response, 'content-type' );
+        
+        if ( empty( $image_content ) ) {
+            continue;
+        }
+
+        // Gemini obsługuje image/png, image/jpeg, image/webp, image/heic, image/heif
+        // Normalizacja MIME type
+        if ( empty( $content_type ) || strpos( $content_type, 'image/' ) !== 0 ) {
+             $ext = strtolower( pathinfo( $img_url, PATHINFO_EXTENSION ) );
+             if ( $ext === 'jpg' || $ext === 'jpeg' ) $content_type = 'image/jpeg';
+             elseif ( $ext === 'png' ) $content_type = 'image/png';
+             elseif ( $ext === 'webp' ) $content_type = 'image/webp';
+             else $content_type = 'image/jpeg'; // Fallback
+        }
+        
+        $base64_data = base64_encode( $image_content );
+        
+        $parts[] = array(
+            'inlineData' => array(
+                'mimeType' => $content_type,
+                'data'     => $base64_data
+            )
+        );
+    }
+    
+    return $parts;
+}

@@ -114,6 +114,14 @@ function aai_register_settings() {
         'agencyjnie-ai-images',
         'aai_style_section'
     );
+
+    add_settings_field(
+        'reference_images',
+        __( 'Obrazki referencyjne', 'agencyjnie-ai-images' ),
+        'aai_render_reference_images_field',
+        'agencyjnie-ai-images',
+        'aai_style_section'
+    );
     
     add_settings_field(
         'aspect_ratio',
@@ -1097,6 +1105,16 @@ function aai_sanitize_options( $input ) {
     } else {
         $sanitized['preferred_stock_source'] = 'unsplash';
     }
+
+    // Obrazki referencyjne
+    if ( isset( $input['reference_images'] ) && is_array( $input['reference_images'] ) ) {
+        $sanitized['reference_images'] = array();
+        foreach ( $input['reference_images'] as $img_url ) {
+            $sanitized['reference_images'][] = esc_url_raw( $img_url );
+        }
+        // Limit 3
+        $sanitized['reference_images'] = array_slice( $sanitized['reference_images'], 0, 3 );
+    }
     
     return $sanitized;
 }
@@ -1125,5 +1143,35 @@ function aai_render_settings_page() {
             ?>
         </form>
     </div>
+    <?php
+}
+/**
+ * Pole: Obrazki referencyjne
+ */
+function aai_render_reference_images_field() {
+    $images = aai_get_option( 'reference_images', array() );
+    if ( ! is_array( $images ) ) {
+        $images = array();
+    }
+    
+    // Limit to 3 images
+    $images = array_slice( $images, 0, 3 );
+    ?>
+    <div id="aai_reference_images_container" class="aai-reference-images-container">
+        <?php foreach ( $images as $img_url ) : ?>
+            <div class="aai-reference-image-item">
+                <input type="hidden" name="aai_options[reference_images][]" value="<?php echo esc_url( $img_url ); ?>" />
+                <img src="<?php echo esc_url( $img_url ); ?>" alt="Reference" />
+                <button type="button" class="button aai-remove-reference-image" title="<?php esc_attr_e( 'Usuń', 'agencyjnie-ai-images' ); ?>">×</button>
+            </div>
+        <?php endforeach; ?>
+    </div>
+    
+    <button type="button" id="aai_add_reference_image" class="button button-secondary" <?php echo count( $images ) >= 3 ? 'disabled' : ''; ?>>
+        <?php esc_html_e( 'Dodaj obrazek referencyjny', 'agencyjnie-ai-images' ); ?>
+    </button>
+    <p class="description">
+        <?php esc_html_e( 'Wybierz do 3 obrazków, które posłużą jako wzór stylu dla generowanych grafik (tylko Gemini).', 'agencyjnie-ai-images' ); ?>
+    </p>
     <?php
 }

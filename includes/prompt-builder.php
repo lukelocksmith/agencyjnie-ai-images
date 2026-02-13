@@ -77,11 +77,13 @@ function aai_build_prompt( $post_id ) {
     
     // Instrukcje dotyczące języka/tekstu na obrazku
     $language_instruction = aai_get_language_instruction( $image_language );
-    $prompt_parts[] = $language_instruction;
     
-    // Dodatkowe instrukcje dla lepszej jakości
+    // Dodatkowe instrukcje dla lepszej jakości (quality boosters)
     $prompt_parts[] = "The image should be professional, high-quality, and suitable for a blog header.";
     
+    // Text constraint - MUST BE LAST for recency bias
+    $prompt_parts[] = $language_instruction;
+
     // Złącz wszystkie części
     $prompt = implode( "\n\n", $prompt_parts );
     
@@ -89,6 +91,27 @@ function aai_build_prompt( $post_id ) {
     $prompt = apply_filters( 'aai_image_prompt', $prompt, $post_id, $post );
     
     return $prompt;
+}
+
+/**
+ * Zwraca instrukcję systemową (System Instruction) dla modelu
+ * 
+ * @param int $post_id ID posta
+ * @return string System Instruction
+ */
+function aai_get_system_instruction( $post_id ) {
+    $instructions = array();
+    $instructions[] = "You are an expert AI image generator. Your task is to create a visually striking featured image for a blog article.";
+    
+    $image_language = aai_get_option( 'image_language', 'pl' );
+    
+    if ( $image_language === 'none' ) {
+        $instructions[] = "CRITICAL RULE: The output image must NOT contain any text, words, letters, numbers, or glyphs. It must be a purely visual representation. If the prompt implies text (like a title), visualize the CONCEPT, do not write the words.";
+    } elseif ( $image_language === 'numbers_only' ) {
+        $instructions[] = "CRITICAL RULE: The output image may contain numbers and charts, but must NOT contain any words, letters, or written language.";
+    }
+    
+    return implode( " ", $instructions );
 }
 
 /**
@@ -116,12 +139,12 @@ function aai_get_language_instruction( $language_code ) {
     
     // Bez tekstu i liczb - całkowicie wizualny obrazek
     if ( $language_code === 'none' ) {
-        return "IMPORTANT: Do NOT include any text, words, letters, numbers, labels, captions, watermarks, or any written content in the image. The image must be purely visual without any textual elements.";
+        return "IMPORTANT FINAL INSTRUCTION: Do NOT include any text, words, letters, numbers, labels, captions, watermarks, or any written content in the image. The image must be purely visual without any textual elements. Visuals ONLY.";
     }
     
     // Tylko liczby - pozwala na cyfry, procenty, statystyki, ale bez słów
     if ( $language_code === 'numbers_only' ) {
-        return "TEXT REQUIREMENT: You MAY include numbers, digits, percentages (%), statistics, mathematical symbols, charts, and graphs in the image. However, do NOT include any words, letters, text labels, or written language. Only numerical data and mathematical notation are allowed. This is ideal for infographics and data visualizations.";
+        return "IMPORTANT FINAL INSTRUCTION: You MAY include numbers, digits, percentages (%), statistics, mathematical symbols, charts, and graphs in the image. However, do NOT include any words, letters, text labels, or written language. Only numerical data and mathematical notation are allowed.";
     }
     
     $language_name = isset( $language_names[ $language_code ] ) ? $language_names[ $language_code ] : 'English';
