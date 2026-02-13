@@ -55,7 +55,10 @@ class AAI_GitHub_Updater {
         // Hooks
         add_filter( 'pre_set_site_transient_update_plugins', array( $this, 'check_update' ) );
         add_filter( 'plugins_api', array( $this, 'plugin_info' ), 20, 3 );
-        add_filter( 'upgrader_post_install', array( $this, 'after_install' ), 10, 3 );
+        add_filter( 'upgrader_source_selection', array( $this, 'fix_source_dir' ), 10, 4 );
+
+        // Dodaj auth header przy pobieraniu ZIP-a z GitHub (prywatne repo)
+        add_filter( 'http_request_args', array( $this, 'add_github_auth_header' ), 10, 2 );
 
         // Czyść cache po sprawdzeniu aktualizacji ręcznie
         add_action( 'admin_init', array( $this, 'maybe_clear_cache' ) );
@@ -95,7 +98,7 @@ class AAI_GitHub_Updater {
         );
 
         // Dodaj token jeśli skonfigurowany (dla prywatnych repozytoriów)
-        $token = aai_get_secure_option( 'github_token', '' );
+        $token = $this->get_github_token();
         if ( ! empty( $token ) ) {
             $args['headers']['Authorization'] = 'Bearer ' . $token;
         }
@@ -128,10 +131,10 @@ class AAI_GitHub_Updater {
             // Użyj najnowszego taga
             $latest_tag = $tags[0];
             $data = (object) array(
-                'tag_name'    => $latest_tag->name,
-                'body'        => '',
+                'tag_name'     => $latest_tag->name,
+                'body'         => '',
                 'published_at' => '',
-                'zipball_url' => $latest_tag->zipball_url,
+                'zipball_url'  => $latest_tag->zipball_url,
             );
         } else {
             $data = json_decode( wp_remote_retrieve_body( $response ) );
@@ -147,6 +150,13 @@ class AAI_GitHub_Updater {
         set_transient( 'aai_github_update_data', $data, 6 * HOUR_IN_SECONDS );
 
         return $data;
+    }
+
+    /**
+     * Pobierz GitHub token (odszyfrowany)
+     */
+    private function get_github_token() {
+        return aai_get_secure_option( 'github_token', '' );
     }
 
     /**
@@ -175,15 +185,15 @@ class AAI_GitHub_Updater {
             $download_url = $this->get_download_url( $github_data );
 
             $transient->response[ $this->plugin_basename ] = (object) array(
-                'slug'        => $this->plugin_slug,
-                'plugin'      => $this->plugin_basename,
-                'new_version' => $remote_version,
-                'url'         => sprintf( 'https://github.com/%s/%s', $this->github_user, $this->github_repo ),
-                'package'     => $download_url,
-                'icons'       => array(),
-                'banners'     => array(),
-                'tested'      => '',
-                'requires'    => '5.8',
+                'slug'         => $this->plugin_slug,
+                'plugin'       => $this->plugin_basename,
+                'new_version'  => $remote_version,
+                'url'          => sprintf( 'https://github.com/%s/%s', $this->github_user, $this->github_repo ),
+                'package'      => $download_url,
+                'icons'        => array(),
+                'banners'      => array(),
+                'tested'       => '',
+                'requires'     => '5.8',
                 'requires_php' => '7.4',
             );
         }
@@ -198,7 +208,7 @@ class AAI_GitHub_Updater {
         // Preferuj zipball_url (zawsze dostępny)
         $url = isset( $github_data->zipball_url ) ? $github_data->zipball_url : '';
 
-        // Sprawdź czy release ma asset ZIP
+        // Sprawdź czy release ma asset ZIP (lepsze bo ma prawidłową nazwę folderu)
         if ( ! empty( $github_data->assets ) && is_array( $github_data->assets ) ) {
             foreach ( $github_data->assets as $asset ) {
                 if ( isset( $asset->browser_download_url ) && substr( $asset->name, -4 ) === '.zip' ) {
@@ -208,13 +218,31 @@ class AAI_GitHub_Updater {
             }
         }
 
-        // Dodaj token do URL jeśli potrzebny (prywatne repo)
-        $token = aai_get_secure_option( 'github_token', '' );
-        if ( ! empty( $token ) && ! empty( $url ) ) {
-            $url = add_query_arg( 'access_token', $token, $url );
+        return $url;
+    }
+
+    /**
+     * Dodaj Authorization header przy pobieraniu z GitHub (prywatne repo)
+     *
+     * WordPress nie pozwala przekazać headerów przez URL, więc przechwytujemy
+     * requesty do api.github.com i dodajemy token.
+     */
+    public function add_github_auth_header( $args, $url ) {
+        // Tylko dla requestów do GitHub API dotyczących tego repo
+        if ( strpos( $url, 'api.github.com' ) === false && strpos( $url, 'github.com' ) === false ) {
+            return $args;
         }
 
-        return $url;
+        if ( strpos( $url, $this->github_repo ) === false ) {
+            return $args;
+        }
+
+        $token = $this->get_github_token();
+        if ( ! empty( $token ) && ! isset( $args['headers']['Authorization'] ) ) {
+            $args['headers']['Authorization'] = 'Bearer ' . $token;
+        }
+
+        return $args;
     }
 
     /**
@@ -237,21 +265,21 @@ class AAI_GitHub_Updater {
         $remote_version = $this->normalize_version( $github_data->tag_name );
 
         $plugin_info = (object) array(
-            'name'          => 'AI Images',
-            'slug'          => $this->plugin_slug,
-            'version'       => $remote_version,
-            'author'        => '<a href="https://important.is">important.is</a>',
-            'homepage'      => sprintf( 'https://github.com/%s/%s', $this->github_user, $this->github_repo ),
+            'name'              => 'AI Images',
+            'slug'              => $this->plugin_slug,
+            'version'           => $remote_version,
+            'author'            => '<a href="https://important.is">important.is</a>',
+            'homepage'          => sprintf( 'https://github.com/%s/%s', $this->github_user, $this->github_repo ),
             'short_description' => 'Automatyczne generowanie featured images przy użyciu AI (Gemini / DALL-E 3).',
-            'sections'      => array(
+            'sections'          => array(
                 'description' => 'Automatyczne generowanie featured images przy użyciu AI (Gemini / DALL-E 3). Obsługuje masowe generowanie z listy wpisów.',
                 'changelog'   => $this->format_changelog( $github_data ),
             ),
-            'download_link' => $this->get_download_url( $github_data ),
-            'requires'      => '5.8',
-            'requires_php'  => '7.4',
-            'tested'        => '',
-            'last_updated'  => isset( $github_data->published_at ) ? $github_data->published_at : '',
+            'download_link'     => $this->get_download_url( $github_data ),
+            'requires'          => '5.8',
+            'requires_php'      => '7.4',
+            'tested'            => '',
+            'last_updated'      => isset( $github_data->published_at ) ? $github_data->published_at : '',
         );
 
         return $plugin_info;
@@ -276,30 +304,37 @@ class AAI_GitHub_Updater {
     }
 
     /**
-     * Po instalacji — popraw nazwę folderu
+     * Popraw nazwę folderu z GitHub ZIP-a PRZED instalacją
      *
-     * GitHub ZIP-y mają format "user-repo-hash/", trzeba to zmienić na "agencyjnie-ai-images/"
+     * GitHub zipball ma format "user-repo-hash/", musimy to zmienić
+     * na "agencyjnie-ai-images/" żeby WordPress zainstalował poprawnie.
+     *
+     * Używamy upgrader_source_selection zamiast upgrader_post_install
+     * bo działa PRZED przeniesieniem plików do docelowego katalogu.
      */
-    public function after_install( $response, $hook_extra, $result ) {
+    public function fix_source_dir( $source, $remote_source, $upgrader, $hook_extra ) {
         global $wp_filesystem;
 
         // Sprawdź czy to nasza wtyczka
         if ( ! isset( $hook_extra['plugin'] ) || $hook_extra['plugin'] !== $this->plugin_basename ) {
-            return $response;
+            return $source;
         }
 
-        $install_directory = plugin_dir_path( dirname( __FILE__ ) ) . $this->plugin_slug . '/';
+        // Oczekiwana ścieżka źródłowa (z prawidłową nazwą folderu)
+        $correct_source = trailingslashit( $remote_source ) . trailingslashit( $this->plugin_slug );
 
-        // Przenieś pliki z folderu GitHub do właściwego folderu wtyczki
-        if ( isset( $result['destination'] ) && $result['destination'] !== $install_directory ) {
-            $wp_filesystem->move( $result['destination'], $install_directory );
-            $result['destination'] = $install_directory;
+        // Jeśli źródło już ma prawidłową nazwę, nie rób nic
+        if ( trailingslashit( $source ) === $correct_source ) {
+            return $source;
         }
 
-        // Reaktywuj wtyczkę
-        activate_plugin( $this->plugin_basename );
+        // Przenieś z nazwy GitHub (user-repo-hash/) do prawidłowej (agencyjnie-ai-images/)
+        if ( $wp_filesystem->move( $source, $correct_source ) ) {
+            return $correct_source;
+        }
 
-        return $response;
+        // Jeśli move się nie udało, zwróć oryginał
+        return $source;
     }
 
     /**
