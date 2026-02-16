@@ -208,6 +208,28 @@ function aai_save_remote_image( $image_data, $post_id = 0, $metadata = array() )
     $attach_data = wp_generate_attachment_metadata( $attach_id, $file );
     wp_update_attachment_metadata( $attach_id, $attach_data );
 
+    // Konwersja do WebP jeśli włączona
+    $webp_enabled = aai_get_option( 'webp_conversion', false );
+    if ( $webp_enabled ) {
+        $webp_path = aai_convert_to_webp( $file );
+        if ( $webp_path ) {
+            // Usuń oryginalny plik PNG/JPG
+            @unlink( $file );
+
+            // Zaktualizuj załącznik z nową ścieżką WebP
+            $webp_filetype = wp_check_filetype( $webp_path );
+            update_attached_file( $attach_id, $webp_path );
+            wp_update_post( array(
+                'ID'             => $attach_id,
+                'post_mime_type' => 'image/webp',
+            ) );
+
+            // Regeneruj metadane z nowym plikiem
+            $attach_data = wp_generate_attachment_metadata( $attach_id, $webp_path );
+            wp_update_attachment_metadata( $attach_id, $attach_data );
+        }
+    }
+
     // Generowanie inteligentnego opisu ALT (jeśli włączone i brak w metadata)
     // Sprawdzamy opcję w ustawieniach
     $auto_alt_enabled = aai_get_option( 'auto_generate_alt', false );
@@ -338,8 +360,74 @@ function aai_generate_seo_alt( $post, $type = 'featured', $number = '' ) {
 }
 
 /**
+ * Konwertuje obrazek do formatu WebP
+ *
+ * @param string $file_path Ścieżka do pliku źródłowego
+ * @param int    $quality   Jakość WebP (0-100)
+ * @return string|false     Ścieżka do pliku WebP lub false w razie błędu
+ */
+function aai_convert_to_webp( $file_path, $quality = 85 ) {
+    if ( ! file_exists( $file_path ) ) {
+        return false;
+    }
+
+    $webp_path = preg_replace( '/\.(png|jpe?g|gif)$/i', '.webp', $file_path );
+
+    // Jeśli ścieżka się nie zmieniła (nieobsługiwane rozszerzenie), dodaj .webp
+    if ( $webp_path === $file_path ) {
+        $webp_path = $file_path . '.webp';
+    }
+
+    // Próba konwersji przez GD
+    if ( function_exists( 'imagewebp' ) ) {
+        $mime = wp_check_filetype( $file_path )['type'];
+        $image = null;
+
+        if ( $mime === 'image/png' ) {
+            $image = @imagecreatefrompng( $file_path );
+            if ( $image ) {
+                // Zachowaj przezroczystość
+                imagepalettetotruecolor( $image );
+                imagealphablending( $image, true );
+                imagesavealpha( $image, true );
+            }
+        } elseif ( $mime === 'image/jpeg' ) {
+            $image = @imagecreatefromjpeg( $file_path );
+        }
+
+        if ( $image ) {
+            $result = imagewebp( $image, $webp_path, $quality );
+            imagedestroy( $image );
+
+            if ( $result && file_exists( $webp_path ) ) {
+                return $webp_path;
+            }
+        }
+    }
+
+    // Fallback: Imagick
+    if ( extension_loaded( 'imagick' ) ) {
+        try {
+            $imagick = new \Imagick( $file_path );
+            $imagick->setImageFormat( 'webp' );
+            $imagick->setImageCompressionQuality( $quality );
+
+            if ( $imagick->writeImage( $webp_path ) ) {
+                $imagick->destroy();
+                return $webp_path;
+            }
+            $imagick->destroy();
+        } catch ( \Exception $e ) {
+            // Konwersja nieudana - zwróć false
+        }
+    }
+
+    return false;
+}
+
+/**
  * Czyści string JSON zwrócony przez AI z bloków Markdown
- * 
+ *
  * @param string $raw_response Surowa odpowiedź tekstowa z AI
  * @return string Czysty string JSON
  */

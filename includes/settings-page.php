@@ -138,7 +138,23 @@ function aai_register_settings() {
         'agencyjnie-ai-images',
         'aai_style_section'
     );
-    
+
+    add_settings_field(
+        'webp_conversion',
+        __( 'Konwersja do WebP', 'agencyjnie-ai-images' ),
+        'aai_render_webp_conversion_field',
+        'agencyjnie-ai-images',
+        'aai_style_section'
+    );
+
+    add_settings_field(
+        'aai_social_variants',
+        __( 'Warianty social media', 'agencyjnie-ai-images' ),
+        'aai_render_social_variants_field',
+        'agencyjnie-ai-images',
+        'aai_style_section'
+    );
+
     // Sekcja: SEO
     add_settings_section(
         'aai_seo_section',
@@ -170,7 +186,15 @@ function aai_register_settings() {
         'agencyjnie-ai-images',
         'aai_automation_section'
     );
-    
+
+    add_settings_field(
+        'post_types',
+        __( 'Obsługiwane typy postów', 'agencyjnie-ai-images' ),
+        'aai_render_post_types_field',
+        'agencyjnie-ai-images',
+        'aai_automation_section'
+    );
+
 }
 add_action( 'admin_init', 'aai_register_settings' );
 
@@ -536,6 +560,59 @@ function aai_render_image_language_field() {
 }
 
 /**
+ * Pole: Konwersja do WebP
+ */
+function aai_render_webp_conversion_field() {
+    $enabled = aai_get_option( 'webp_conversion', false );
+    $gd_support = function_exists( 'imagewebp' );
+    $imagick_support = ( extension_loaded( 'imagick' ) && in_array( 'WEBP', \Imagick::queryFormats(), true ) );
+    $supported = $gd_support || $imagick_support;
+    ?>
+    <label>
+        <input
+            type="checkbox"
+            name="aai_options[webp_conversion]"
+            value="1"
+            <?php checked( $enabled, true ); ?>
+            <?php disabled( ! $supported ); ?>
+        />
+        <?php esc_html_e( 'Konwertuj wygenerowane obrazki do formatu WebP (mniejszy rozmiar pliku)', 'agencyjnie-ai-images' ); ?>
+    </label>
+    <?php if ( ! $supported ) : ?>
+        <p class="description" style="color: #dc3545;">
+            <?php esc_html_e( 'Serwer nie obsługuje WebP. Wymagane rozszerzenie GD z obsługą WebP lub Imagick.', 'agencyjnie-ai-images' ); ?>
+        </p>
+    <?php else : ?>
+        <p class="description">
+            <?php
+            $lib = $gd_support ? 'GD' : 'Imagick';
+            printf(
+                esc_html__( 'Używa biblioteki %s. WebP zazwyczaj zmniejsza rozmiar pliku o 25-35%% w porównaniu do PNG.', 'agencyjnie-ai-images' ),
+                '<strong>' . esc_html( $lib ) . '</strong>'
+            );
+            ?>
+        </p>
+    <?php endif; ?>
+    <?php
+}
+
+/**
+ * Pole: Warianty social media
+ */
+function aai_render_social_variants_field() {
+    $value = aai_get_option( 'social_variants', false );
+    ?>
+    <label>
+        <input type="checkbox" name="aai_options[social_variants]" value="1" <?php checked( $value, 1 ); ?> />
+        <?php esc_html_e( 'Automatycznie generuj warianty social media (OG 1200x630, Instagram 1080x1080, Pinterest 1000x1500)', 'agencyjnie-ai-images' ); ?>
+    </label>
+    <p class="description">
+        <?php esc_html_e( 'Po wygenerowaniu featured image, automatycznie tworzy przycięte wersje dla social media.', 'agencyjnie-ai-images' ); ?>
+    </p>
+    <?php
+}
+
+/**
  * Callback dla sekcji SEO
  */
 function aai_seo_section_callback() {
@@ -585,6 +662,43 @@ function aai_render_auto_generate_field() {
     <?php
 }
 
+
+/**
+ * Pole: Obsługiwane typy postów
+ */
+function aai_render_post_types_field() {
+    $saved_types = aai_get_option( 'post_types', array( 'post' ) );
+    if ( ! is_array( $saved_types ) ) {
+        $saved_types = array( 'post' );
+    }
+
+    // Pobierz wszystkie publiczne typy postów
+    $post_types = get_post_types( array( 'public' => true ), 'objects' );
+
+    // Usuń 'attachment' - nie ma sensu generować obrazków dla załączników
+    unset( $post_types['attachment'] );
+
+    foreach ( $post_types as $post_type ) {
+        $checked = in_array( $post_type->name, $saved_types, true );
+        ?>
+        <label style="display: block; margin-bottom: 6px;">
+            <input
+                type="checkbox"
+                name="aai_options[post_types][]"
+                value="<?php echo esc_attr( $post_type->name ); ?>"
+                <?php checked( $checked ); ?>
+            />
+            <?php echo esc_html( $post_type->labels->singular_name ); ?>
+            <code style="font-size: 11px; color: #888;">(<?php echo esc_html( $post_type->name ); ?>)</code>
+        </label>
+        <?php
+    }
+    ?>
+    <p class="description">
+        <?php esc_html_e( 'Wybierz typy postów, dla których będzie dostępne generowanie AI obrazków (meta box + auto-generowanie + bulk actions).', 'agencyjnie-ai-images' ); ?>
+    </p>
+    <?php
+}
 
 /**
  * Sanityzacja opcji
@@ -692,7 +806,24 @@ function aai_sanitize_options( $input ) {
     
     // Auto-generowanie ALT
     $sanitized['auto_generate_alt'] = ! empty( $input['auto_generate_alt'] );
-    
+
+    // Konwersja WebP
+    $sanitized['webp_conversion'] = ! empty( $input['webp_conversion'] );
+
+    // Social media variants
+    $sanitized['social_variants'] = ! empty( $input['social_variants'] ) ? 1 : 0;
+
+    // Obsługiwane typy postów
+    if ( isset( $input['post_types'] ) && is_array( $input['post_types'] ) ) {
+        $allowed_post_types = array_keys( get_post_types( array( 'public' => true ) ) );
+        $sanitized['post_types'] = array_filter( $input['post_types'], function( $type ) use ( $allowed_post_types ) {
+            return in_array( $type, $allowed_post_types, true ) && $type !== 'attachment';
+        });
+        $sanitized['post_types'] = array_values( $sanitized['post_types'] );
+    } else {
+        $sanitized['post_types'] = array( 'post' ); // Default
+    }
+
     // Obrazki referencyjne
     if ( isset( $input['reference_images'] ) && is_array( $input['reference_images'] ) ) {
         $sanitized['reference_images'] = array();

@@ -33,7 +33,16 @@ function aai_build_prompt( $post_id ) {
     // Pobierz ustawienia
     $base_prompt    = aai_get_option( 'base_prompt', '' );
     $negative_prompt = aai_get_option( 'negative_prompt', '' );
-    $style          = aai_get_style_description();
+
+    // Check for category-specific style override
+    $category_style_key = function_exists( 'aai_get_category_style' ) ? aai_get_category_style( $post_id ) : null;
+    if ( $category_style_key ) {
+        $all_styles = aai_get_all_style_descriptions();
+        $style = isset( $all_styles[ $category_style_key ] ) ? $all_styles[ $category_style_key ] : aai_get_style_description();
+    } else {
+        $style = aai_get_style_description();
+    }
+
     $colors         = aai_get_colors_description();
     $aspect_ratio   = aai_get_option( 'aspect_ratio', '16:9' );
     $image_language = aai_get_option( 'image_language', 'pl' );

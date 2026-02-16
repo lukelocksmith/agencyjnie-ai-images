@@ -3,7 +3,7 @@
  * Plugin Name: AI Images
  * Plugin URI: https://agencyjnie.pl
  * Description: Automatyczne generowanie featured images przy użyciu Google Gemini AI
- * Version: 1.4.2
+ * Version: 1.9.0
  * Author: important.is
  * Author URI: https://important.is
  * License: GPL v2 or later
@@ -16,7 +16,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 // Stałe wtyczki
-define( 'AAI_VERSION', '1.4.2' );
+define( 'AAI_VERSION', '1.9.0' );
 define( 'AAI_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'AAI_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 define( 'AAI_PLUGIN_BASENAME', plugin_basename( __FILE__ ) );
@@ -32,6 +32,10 @@ function aai_load_includes() {
     require_once AAI_PLUGIN_DIR . 'includes/meta-box.php';
     require_once AAI_PLUGIN_DIR . 'includes/bulk-actions.php';
     require_once AAI_PLUGIN_DIR . 'includes/github-updater.php';
+    require_once AAI_PLUGIN_DIR . 'includes/stats.php';
+    require_once AAI_PLUGIN_DIR . 'includes/category-styles.php';
+    require_once AAI_PLUGIN_DIR . 'includes/social-images.php';
+    require_once AAI_PLUGIN_DIR . 'includes/upscale.php';
 }
 add_action( 'plugins_loaded', 'aai_load_includes' );
 
@@ -40,7 +44,7 @@ add_action( 'plugins_loaded', 'aai_load_includes' );
  */
 function aai_admin_enqueue_scripts( $hook ) {
     // Ładuj na stronach edycji postów, ustawień wtyczki i liście wpisów (bulk actions)
-    $allowed_hooks = array( 'post.php', 'post-new.php', 'settings_page_agencyjnie-ai-images', 'edit.php' );
+    $allowed_hooks = array( 'post.php', 'post-new.php', 'settings_page_agencyjnie-ai-images', 'edit.php', 'settings_page_aai-stats', 'settings_page_aai-category-styles' );
     
     if ( ! in_array( $hook, $allowed_hooks, true ) ) {
         return;
@@ -123,9 +127,15 @@ function aai_ajax_generate_image() {
     
     // Budowanie promptu
     $prompt = aai_build_prompt( $post_id );
-    
+
     if ( empty( $prompt ) ) {
         wp_send_json_error( array( 'message' => __( 'Nie udało się zbudować promptu. Sprawdź czy post ma tytuł.', 'agencyjnie-ai-images' ) ) );
+    }
+
+    // Allow custom prompt override from prompt editor
+    $custom_prompt = isset( $_POST['custom_prompt'] ) ? sanitize_textarea_field( $_POST['custom_prompt'] ) : '';
+    if ( ! empty( $custom_prompt ) ) {
+        $prompt = $custom_prompt;
     }
     
     // System instruction (dla lepszej kontroli tekstu)
@@ -145,9 +155,30 @@ function aai_ajax_generate_image() {
         wp_send_json_error( array( 'message' => $attachment_id->get_error_message() ) );
     }
     
+    // Zapisz aktualny featured image do historii
+    $current_thumb = get_post_thumbnail_id( $post_id );
+    if ( $current_thumb ) {
+        $history = get_post_meta( $post_id, '_aai_image_history', true );
+        if ( ! is_array( $history ) ) {
+            $history = array();
+        }
+        array_unshift( $history, array(
+            'attachment_id' => $current_thumb,
+            'date'          => current_time( 'mysql' ),
+        ) );
+        $history = array_slice( $history, 0, 10 ); // Keep last 10
+        update_post_meta( $post_id, '_aai_image_history', $history );
+    }
+
     // Ustawienie jako featured image
     set_post_thumbnail( $post_id, $attachment_id );
-    
+
+    // Generate social media variants if enabled
+    $social_enabled = aai_get_option( 'social_variants', false );
+    if ( $social_enabled && function_exists( 'aai_generate_social_variants' ) ) {
+        aai_generate_social_variants( $attachment_id, $post_id );
+    }
+
     // Zwrócenie sukcesu z URL obrazka i informacjami o tokenach
     $image_url = wp_get_attachment_image_url( $attachment_id, 'medium' );
     
@@ -158,6 +189,12 @@ function aai_ajax_generate_image() {
     update_post_meta( $attachment_id, '_aai_source', 'ai_generated' );
     update_post_meta( $attachment_id, '_aai_original_prompt', $prompt );
 
+    // Log generation stats
+    if ( function_exists( 'aai_log_generation' ) ) {
+        $ai_model = aai_get_option( 'ai_model', 'gemini' );
+        aai_log_generation( $post_id, $ai_model, $tokens, 'success', 'featured' );
+    }
+
     wp_send_json_success( array(
         'message'       => __( 'Obrazek wygenerowany i ustawiony jako featured image!', 'agencyjnie-ai-images' ),
         'attachment_id' => $attachment_id,
@@ -167,6 +204,329 @@ function aai_ajax_generate_image() {
     ) );
 }
 add_action( 'wp_ajax_aai_generate_image', 'aai_ajax_generate_image' );
+
+/**
+ * AJAX handler do podglądu promptu
+ */
+function aai_ajax_preview_prompt() {
+    if ( ! check_ajax_referer( 'aai_generate_image', 'nonce', false ) ) {
+        wp_send_json_error( array( 'message' => 'Błąd bezpieczeństwa.' ) );
+    }
+    $post_id = isset( $_POST['post_id'] ) ? absint( $_POST['post_id'] ) : 0;
+    if ( ! $post_id || ! current_user_can( 'edit_post', $post_id ) ) {
+        wp_send_json_error( array( 'message' => 'Brak uprawnień.' ) );
+    }
+    $prompt = aai_build_prompt( $post_id );
+    wp_send_json_success( array( 'prompt' => $prompt ) );
+}
+add_action( 'wp_ajax_aai_preview_prompt', 'aai_ajax_preview_prompt' );
+
+/**
+ * AJAX handler do przywracania poprzedniego obrazka (rollback)
+ */
+function aai_ajax_rollback_image() {
+    if ( ! check_ajax_referer( 'aai_generate_image', 'nonce', false ) ) {
+        wp_send_json_error( array( 'message' => 'Błąd bezpieczeństwa.' ) );
+    }
+
+    $post_id       = isset( $_POST['post_id'] ) ? absint( $_POST['post_id'] ) : 0;
+    $attachment_id  = isset( $_POST['attachment_id'] ) ? absint( $_POST['attachment_id'] ) : 0;
+
+    if ( ! $post_id || ! $attachment_id ) {
+        wp_send_json_error( array( 'message' => 'Nieprawidłowe parametry.' ) );
+    }
+
+    if ( ! current_user_can( 'edit_post', $post_id ) ) {
+        wp_send_json_error( array( 'message' => 'Brak uprawnień.' ) );
+    }
+
+    // Verify attachment exists and is in history
+    $history = get_post_meta( $post_id, '_aai_image_history', true );
+    if ( ! is_array( $history ) ) {
+        wp_send_json_error( array( 'message' => 'Brak historii.' ) );
+    }
+
+    $found = false;
+    foreach ( $history as $item ) {
+        if ( (int) $item['attachment_id'] === $attachment_id ) {
+            $found = true;
+            break;
+        }
+    }
+
+    if ( ! $found ) {
+        wp_send_json_error( array( 'message' => 'Obrazek nie znajduje się w historii.' ) );
+    }
+
+    // Verify attachment still exists
+    if ( ! wp_get_attachment_url( $attachment_id ) ) {
+        wp_send_json_error( array( 'message' => 'Obrazek został usunięty z biblioteki mediów.' ) );
+    }
+
+    // Save current featured image to history before rollback
+    $current_thumb = get_post_thumbnail_id( $post_id );
+    if ( $current_thumb && $current_thumb !== $attachment_id ) {
+        array_unshift( $history, array(
+            'attachment_id' => $current_thumb,
+            'date'          => current_time( 'mysql' ),
+        ) );
+        $history = array_slice( $history, 0, 10 );
+    }
+
+    // Remove the rolled-back image from history
+    $history = array_filter( $history, function( $item ) use ( $attachment_id ) {
+        return (int) $item['attachment_id'] !== $attachment_id;
+    });
+    $history = array_values( $history );
+    update_post_meta( $post_id, '_aai_image_history', $history );
+
+    // Set as featured image
+    set_post_thumbnail( $post_id, $attachment_id );
+
+    $image_url = wp_get_attachment_image_url( $attachment_id, 'medium' );
+
+    wp_send_json_success( array(
+        'message'       => 'Przywrócono poprzedni obrazek!',
+        'attachment_id' => $attachment_id,
+        'image_url'     => $image_url,
+    ) );
+}
+add_action( 'wp_ajax_aai_rollback_image', 'aai_ajax_rollback_image' );
+
+/**
+ * AJAX handler - generuje pojedynczy wariant obrazka (dla modalu wariantów)
+ */
+function aai_ajax_generate_variant() {
+    if ( ! check_ajax_referer( 'aai_generate_image', 'nonce', false ) ) {
+        wp_send_json_error( array( 'message' => 'Błąd bezpieczeństwa.' ) );
+    }
+
+    $post_id = isset( $_POST['post_id'] ) ? absint( $_POST['post_id'] ) : 0;
+
+    if ( ! $post_id || ! current_user_can( 'edit_post', $post_id ) ) {
+        wp_send_json_error( array( 'message' => 'Brak uprawnień.' ) );
+    }
+
+    // Build prompt (use custom if provided)
+    $custom_prompt = isset( $_POST['custom_prompt'] ) ? sanitize_textarea_field( $_POST['custom_prompt'] ) : '';
+    $prompt = ! empty( $custom_prompt ) ? $custom_prompt : aai_build_prompt( $post_id );
+
+    if ( empty( $prompt ) ) {
+        wp_send_json_error( array( 'message' => 'Nie udało się zbudować promptu.' ) );
+    }
+
+    $system_instruction = function_exists( 'aai_get_system_instruction' ) ? aai_get_system_instruction( $post_id ) : null;
+
+    $result = aai_generate_image( $prompt, null, $system_instruction );
+
+    if ( is_wp_error( $result ) ) {
+        wp_send_json_error( array( 'message' => $result->get_error_message() ) );
+    }
+
+    // Save to media library but DON'T set as featured
+    $attachment_id = aai_save_image_to_media_library( $result['image_data'], $post_id, 'featured' );
+
+    if ( is_wp_error( $attachment_id ) ) {
+        wp_send_json_error( array( 'message' => $attachment_id->get_error_message() ) );
+    }
+
+    update_post_meta( $attachment_id, '_aai_source', 'ai_generated' );
+    update_post_meta( $attachment_id, '_aai_original_prompt', $prompt );
+    update_post_meta( $attachment_id, '_aai_variant_draft', true );
+
+    $image_url = wp_get_attachment_image_url( $attachment_id, 'medium' );
+    $tokens = isset( $result['tokens'] ) ? $result['tokens'] : array();
+
+    // Log generation stats
+    if ( function_exists( 'aai_log_generation' ) ) {
+        $ai_model = aai_get_option( 'ai_model', 'gemini' );
+        aai_log_generation( $post_id, $ai_model, $tokens, 'success', 'variant' );
+    }
+
+    wp_send_json_success( array(
+        'attachment_id' => $attachment_id,
+        'image_url'     => $image_url,
+        'tokens'        => $tokens,
+    ) );
+}
+add_action( 'wp_ajax_aai_generate_variant', 'aai_ajax_generate_variant' );
+
+/**
+ * AJAX handler - ustawia wybrany wariant jako featured image
+ */
+function aai_ajax_set_variant() {
+    if ( ! check_ajax_referer( 'aai_generate_image', 'nonce', false ) ) {
+        wp_send_json_error( array( 'message' => 'Błąd bezpieczeństwa.' ) );
+    }
+
+    $post_id       = isset( $_POST['post_id'] ) ? absint( $_POST['post_id'] ) : 0;
+    $attachment_id  = isset( $_POST['attachment_id'] ) ? absint( $_POST['attachment_id'] ) : 0;
+    $reject_ids    = isset( $_POST['reject_ids'] ) ? array_map( 'absint', (array) $_POST['reject_ids'] ) : array();
+
+    if ( ! $post_id || ! $attachment_id || ! current_user_can( 'edit_post', $post_id ) ) {
+        wp_send_json_error( array( 'message' => 'Brak uprawnień.' ) );
+    }
+
+    // Save current featured image to history
+    $current_thumb = get_post_thumbnail_id( $post_id );
+    if ( $current_thumb ) {
+        $history = get_post_meta( $post_id, '_aai_image_history', true );
+        if ( ! is_array( $history ) ) {
+            $history = array();
+        }
+        array_unshift( $history, array(
+            'attachment_id' => $current_thumb,
+            'date'          => current_time( 'mysql' ),
+        ) );
+        $history = array_slice( $history, 0, 10 );
+        update_post_meta( $post_id, '_aai_image_history', $history );
+    }
+
+    // Set chosen variant as featured
+    set_post_thumbnail( $post_id, $attachment_id );
+    delete_post_meta( $attachment_id, '_aai_variant_draft' );
+
+    // Delete rejected variants
+    foreach ( $reject_ids as $reject_id ) {
+        if ( $reject_id !== $attachment_id && get_post_meta( $reject_id, '_aai_variant_draft', true ) ) {
+            wp_delete_attachment( $reject_id, true );
+        }
+    }
+
+    $image_url = wp_get_attachment_image_url( $attachment_id, 'medium' );
+
+    wp_send_json_success( array(
+        'message'       => 'Wariant ustawiony jako featured image!',
+        'attachment_id' => $attachment_id,
+        'image_url'     => $image_url,
+    ) );
+}
+add_action( 'wp_ajax_aai_set_variant', 'aai_ajax_set_variant' );
+
+/**
+ * AJAX handler — analiza artykułu i generowanie optymalnego promptu
+ */
+function aai_ajax_analyze_article() {
+    if ( ! check_ajax_referer( 'aai_generate_image', 'nonce', false ) ) {
+        wp_send_json_error( array( 'message' => 'Błąd bezpieczeństwa.' ) );
+    }
+
+    $post_id = isset( $_POST['post_id'] ) ? absint( $_POST['post_id'] ) : 0;
+
+    if ( ! $post_id || ! current_user_can( 'edit_post', $post_id ) ) {
+        wp_send_json_error( array( 'message' => 'Brak uprawnień.' ) );
+    }
+
+    $result = aai_analyze_article_for_prompt( $post_id );
+
+    if ( is_wp_error( $result ) ) {
+        wp_send_json_error( array( 'message' => $result->get_error_message() ) );
+    }
+
+    wp_send_json_success( array( 'prompt' => $result ) );
+}
+add_action( 'wp_ajax_aai_analyze_article', 'aai_ajax_analyze_article' );
+
+/**
+ * AJAX handler — upscale (powiększenie) obrazka
+ */
+function aai_ajax_upscale_image() {
+    if ( ! check_ajax_referer( 'aai_generate_image', 'nonce', false ) ) {
+        wp_send_json_error( array( 'message' => 'Błąd bezpieczeństwa.' ) );
+    }
+
+    $post_id       = isset( $_POST['post_id'] ) ? absint( $_POST['post_id'] ) : 0;
+    $attachment_id  = isset( $_POST['attachment_id'] ) ? absint( $_POST['attachment_id'] ) : 0;
+
+    if ( ! $post_id || ! $attachment_id || ! current_user_can( 'edit_post', $post_id ) ) {
+        wp_send_json_error( array( 'message' => 'Brak uprawnień.' ) );
+    }
+
+    // Save current to history before replacing
+    $current_thumb = get_post_thumbnail_id( $post_id );
+    if ( $current_thumb ) {
+        $history = get_post_meta( $post_id, '_aai_image_history', true );
+        if ( ! is_array( $history ) ) {
+            $history = array();
+        }
+        array_unshift( $history, array(
+            'attachment_id' => $current_thumb,
+            'date'          => current_time( 'mysql' ),
+        ) );
+        $history = array_slice( $history, 0, 10 );
+        update_post_meta( $post_id, '_aai_image_history', $history );
+    }
+
+    $result = aai_upscale_image( $attachment_id, $post_id );
+
+    if ( is_wp_error( $result ) ) {
+        wp_send_json_error( array( 'message' => $result->get_error_message() ) );
+    }
+
+    // Set as featured image
+    set_post_thumbnail( $post_id, $result['attachment_id'] );
+
+    wp_send_json_success( array(
+        'message'       => 'Obrazek powiększony pomyślnie!',
+        'attachment_id' => $result['attachment_id'],
+        'image_url'     => $result['image_url'],
+        'tokens'        => $result['tokens'],
+    ) );
+}
+add_action( 'wp_ajax_aai_upscale_image', 'aai_ajax_upscale_image' );
+
+/**
+ * AJAX handler — edycja obrazka z instrukcjami tekstowymi
+ */
+function aai_ajax_edit_image() {
+    if ( ! check_ajax_referer( 'aai_generate_image', 'nonce', false ) ) {
+        wp_send_json_error( array( 'message' => 'Błąd bezpieczeństwa.' ) );
+    }
+
+    $post_id       = isset( $_POST['post_id'] ) ? absint( $_POST['post_id'] ) : 0;
+    $attachment_id  = isset( $_POST['attachment_id'] ) ? absint( $_POST['attachment_id'] ) : 0;
+    $edit_prompt   = isset( $_POST['edit_prompt'] ) ? sanitize_textarea_field( $_POST['edit_prompt'] ) : '';
+
+    if ( ! $post_id || ! $attachment_id || ! current_user_can( 'edit_post', $post_id ) ) {
+        wp_send_json_error( array( 'message' => 'Brak uprawnień.' ) );
+    }
+
+    if ( empty( $edit_prompt ) ) {
+        wp_send_json_error( array( 'message' => 'Podaj instrukcje edycji.' ) );
+    }
+
+    // Save current to history before replacing
+    $current_thumb = get_post_thumbnail_id( $post_id );
+    if ( $current_thumb ) {
+        $history = get_post_meta( $post_id, '_aai_image_history', true );
+        if ( ! is_array( $history ) ) {
+            $history = array();
+        }
+        array_unshift( $history, array(
+            'attachment_id' => $current_thumb,
+            'date'          => current_time( 'mysql' ),
+        ) );
+        $history = array_slice( $history, 0, 10 );
+        update_post_meta( $post_id, '_aai_image_history', $history );
+    }
+
+    $result = aai_edit_image( $attachment_id, $post_id, $edit_prompt );
+
+    if ( is_wp_error( $result ) ) {
+        wp_send_json_error( array( 'message' => $result->get_error_message() ) );
+    }
+
+    // Set as featured image
+    set_post_thumbnail( $post_id, $result['attachment_id'] );
+
+    wp_send_json_success( array(
+        'message'       => 'Obrazek edytowany pomyślnie!',
+        'attachment_id' => $result['attachment_id'],
+        'image_url'     => $result['image_url'],
+        'tokens'        => $result['tokens'],
+    ) );
+}
+add_action( 'wp_ajax_aai_edit_image', 'aai_ajax_edit_image' );
 
 /**
  * Auto-generowanie obrazka przy publikacji posta
@@ -200,6 +560,19 @@ function aai_auto_generate_on_publish( $new_status, $old_status, $post ) {
     wp_schedule_single_event( time(), 'aai_async_auto_generate', array( $post->ID ) );
 }
 add_action( 'transition_post_status', 'aai_auto_generate_on_publish', 10, 3 );
+
+/**
+ * Zwraca obsługiwane typy postów z ustawień
+ */
+function aai_get_supported_post_types() {
+    $post_types = aai_get_option( 'post_types', array( 'post' ) );
+    if ( ! is_array( $post_types ) || empty( $post_types ) ) {
+        return array( 'post' );
+    }
+    return $post_types;
+}
+add_filter( 'aai_allowed_post_types', 'aai_get_supported_post_types' );
+add_filter( 'aai_meta_box_post_types', 'aai_get_supported_post_types' );
 
 /**
  * Handler dla asynchronicznego generowania obrazka (WP Cron)
@@ -240,8 +613,19 @@ function aai_process_async_generation( $post_id ) {
         set_post_thumbnail( $post_id, $attachment_id );
         // Zapisz log sukcesu w meta
         update_post_meta( $post_id, '_aai_auto_generated_success', current_time( 'mysql' ) );
+        // Log generation stats
+        if ( function_exists( 'aai_log_generation' ) ) {
+            $ai_model = aai_get_option( 'ai_model', 'gemini' );
+            $async_tokens = isset( $result['tokens'] ) ? $result['tokens'] : array();
+            aai_log_generation( $post_id, $ai_model, $async_tokens, 'success', 'auto' );
+        }
     } else {
         error_log( 'AAI Async Error: Could not save image. ' . $attachment_id->get_error_message() );
+        // Log error
+        if ( function_exists( 'aai_log_generation' ) ) {
+            $ai_model = aai_get_option( 'ai_model', 'gemini' );
+            aai_log_generation( $post_id, $ai_model, array(), 'error', 'auto' );
+        }
     }
 }
 add_action( 'aai_async_auto_generate', 'aai_process_async_generation' );
@@ -408,13 +792,20 @@ function aai_ajax_generate_block_image() {
     update_post_meta( $attachment_id, '_aai_source', 'ai_generated' );
     update_post_meta( $attachment_id, '_aai_block_image', true );
     update_post_meta( $attachment_id, '_aai_original_prompt', $custom_prompt );
-    
+
     $image_url = wp_get_attachment_image_url( $attachment_id, 'large' );
     $alt_text  = wp_strip_all_tags( substr( $custom_prompt, 0, 125 ) );
-    
+
     // Ustaw alt text
     update_post_meta( $attachment_id, '_wp_attachment_image_alt', $alt_text );
-    
+
+    // Log generation stats
+    if ( function_exists( 'aai_log_generation' ) ) {
+        $ai_model = aai_get_option( 'ai_model', 'gemini' );
+        $block_tokens = isset( $result['tokens'] ) ? $result['tokens'] : array();
+        aai_log_generation( $post_id, $ai_model, $block_tokens, 'success', 'block' );
+    }
+
     wp_send_json_success( array(
         'message'       => __( 'Obrazek wygenerowany!', 'agencyjnie-ai-images' ),
         'attachment_id' => $attachment_id,
@@ -458,6 +849,7 @@ function aai_activate() {
         'aspect_ratio'           => '16:9',
         'image_language'         => 'pl',
         'auto_generate'          => false,
+        'post_types'             => array( 'post' ),
         'max_content_images'     => 5,
         // Źródła obrazków
         'source_media_library'   => true,

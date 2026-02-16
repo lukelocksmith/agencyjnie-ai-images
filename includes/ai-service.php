@@ -492,3 +492,112 @@ function aai_get_processed_reference_images() {
     
     return $parts;
 }
+
+/**
+ * Analizuje artykuł i generuje optymalny prompt do obrazka
+ *
+ * @param int $post_id ID posta do analizy
+ * @return string|WP_Error Wygenerowany prompt lub błąd
+ */
+function aai_analyze_article_for_prompt( $post_id ) {
+    $api_key = aai_get_secure_option( 'api_key' );
+
+    if ( empty( $api_key ) ) {
+        return new WP_Error( 'no_api_key', __( 'Brak klucza API Gemini.', 'agencyjnie-ai-images' ) );
+    }
+
+    $post = get_post( $post_id );
+    if ( ! $post ) {
+        return new WP_Error( 'no_post', __( 'Post nie istnieje.', 'agencyjnie-ai-images' ) );
+    }
+
+    // Get full article content, strip HTML and shortcodes
+    $content = $post->post_content;
+    $content = strip_shortcodes( $content );
+    $content = preg_replace( '/<!--.*?-->/', '', $content );
+    $content = wp_strip_all_tags( $content );
+    $content = preg_replace( '/\s+/', ' ', $content );
+    $content = trim( $content );
+
+    // Limit to 3000 chars to keep token usage low
+    if ( mb_strlen( $content ) > 3000 ) {
+        $content = mb_substr( $content, 0, 3000 ) . '...';
+    }
+
+    $title = $post->post_title;
+
+    // Get current settings for context
+    $style = aai_get_style_description();
+    $image_language = aai_get_option( 'image_language', 'pl' );
+    $language_instruction = aai_get_language_instruction( $image_language );
+
+    $system_instruction = "You are an expert AI image prompt engineer. Your task is to analyze a blog article and create the PERFECT image generation prompt for its featured image. The prompt should be detailed, visual, and produce a stunning blog header image.";
+
+    $user_prompt = "Analyze this article and create an optimized image generation prompt for a featured image.\n\n";
+    $user_prompt .= "ARTICLE TITLE: \"{$title}\"\n\n";
+    $user_prompt .= "ARTICLE CONTENT:\n{$content}\n\n";
+
+    if ( ! empty( $style ) ) {
+        $user_prompt .= "ART STYLE TO USE: {$style}\n\n";
+    }
+
+    $user_prompt .= "REQUIREMENTS:\n";
+    $user_prompt .= "- Create a detailed, visual prompt that captures the article's essence\n";
+    $user_prompt .= "- Include specific visual elements, mood, lighting, and composition\n";
+    $user_prompt .= "- The prompt should be in English (the AI image generator works best in English)\n";
+    $user_prompt .= "- {$language_instruction}\n";
+    $user_prompt .= "- Output ONLY the prompt text, nothing else. No explanations, no quotes.\n";
+    $user_prompt .= "- Maximum 500 characters.\n";
+
+    // Call Gemini text model (cheap, fast)
+    $api_url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent';
+
+    $request_body = array(
+        'systemInstruction' => array(
+            'parts' => array(
+                array( 'text' => $system_instruction )
+            )
+        ),
+        'contents' => array(
+            array(
+                'parts' => array(
+                    array( 'text' => $user_prompt )
+                )
+            )
+        ),
+        'generationConfig' => array(
+            'maxOutputTokens' => 300,
+            'temperature'     => 0.7,
+        ),
+    );
+
+    $response = wp_remote_post( $api_url, array(
+        'timeout' => 30,
+        'headers' => array(
+            'Content-Type'   => 'application/json',
+            'x-goog-api-key' => $api_key,
+        ),
+        'body' => wp_json_encode( $request_body ),
+    ) );
+
+    if ( is_wp_error( $response ) ) {
+        return $response;
+    }
+
+    $response_code = wp_remote_retrieve_response_code( $response );
+    $body = json_decode( wp_remote_retrieve_body( $response ), true );
+
+    if ( $response_code !== 200 ) {
+        $error_msg = isset( $body['error']['message'] ) ? $body['error']['message'] : 'Błąd API';
+        return new WP_Error( 'api_error', $error_msg );
+    }
+
+    if ( isset( $body['candidates'][0]['content']['parts'][0]['text'] ) ) {
+        $prompt = trim( $body['candidates'][0]['content']['parts'][0]['text'] );
+        // Remove quotes if wrapped
+        $prompt = trim( $prompt, '"\'' );
+        return $prompt;
+    }
+
+    return new WP_Error( 'no_result', __( 'Nie udało się przeanalizować artykułu.', 'agencyjnie-ai-images' ) );
+}

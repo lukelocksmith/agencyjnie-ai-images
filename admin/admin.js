@@ -17,7 +17,10 @@
         initStyleToggle();
         initColorPickers();
         initPasswordToggle();
-        initPromptToggle();
+        initPromptPreview();
+        initImageHistory();
+        initVariantsButton();
+        initUpscaleEdit();
     });
 
     /**
@@ -63,15 +66,24 @@
         $btn.find('.aai-btn-text').text(isRegenerate ? 'Regenerowanie...' : aaiData.strings.generating);
         $message.hide();
 
+        // Build request data
+        var requestData = {
+            action: 'aai_generate_image',
+            post_id: postId,
+            nonce: aaiData.nonce
+        };
+
+        // Send custom prompt if user edited it
+        var $promptEditor = $('#aai-prompt-editor');
+        if ($promptEditor.length && $promptEditor.hasClass('is-modified')) {
+            requestData.custom_prompt = $promptEditor.val();
+        }
+
         // Wykonaj request AJAX
         $.ajax({
             url: aaiData.ajaxUrl,
             type: 'POST',
-            data: {
-                action: 'aai_generate_image',
-                post_id: postId,
-                nonce: aaiData.nonce
-            },
+            data: requestData,
             timeout: 120000, // 2 minuty timeout
             success: function (response) {
                 if (response.success) {
@@ -397,13 +409,469 @@
     }
 
     /**
-     * Toggle podglądu promptu (tryb debug)
+     * Podgląd i edycja promptu
      */
-    function initPromptToggle() {
-        $('#aai-toggle-prompt').on('click', function (e) {
-            e.preventDefault();
-            $('#aai-prompt-preview').slideToggle();
+    function initPromptPreview() {
+        var $editor = $('#aai-prompt-editor');
+        var $refreshBtn = $('#aai-refresh-prompt');
+
+        if (!$editor.length) return;
+
+        // Track if user has modified the prompt
+        var isModified = false;
+        $editor.on('input', function () {
+            isModified = true;
+            $(this).addClass('is-modified');
         });
+
+        // Refresh prompt button
+        $refreshBtn.on('click', function (e) {
+            e.preventDefault();
+            var $btn = $(this);
+            var postId = $('#aai-generate-btn').data('post-id');
+
+            if (!postId) return;
+
+            $btn.prop('disabled', true).text('Ładowanie...');
+
+            $.ajax({
+                url: aaiData.ajaxUrl,
+                type: 'POST',
+                data: {
+                    action: 'aai_preview_prompt',
+                    post_id: postId,
+                    nonce: aaiData.nonce
+                },
+                success: function (response) {
+                    if (response.success) {
+                        $editor.val(response.data.prompt).removeClass('is-modified');
+                        isModified = false;
+                    }
+                },
+                complete: function () {
+                    $btn.prop('disabled', false).text('Odśwież');
+                }
+            });
+        });
+
+        // Analyze article button
+        var $analyzeBtn = $('#aai-analyze-article');
+        if ($analyzeBtn.length) {
+            $analyzeBtn.on('click', function (e) {
+                e.preventDefault();
+                var $btn = $(this);
+                var postId = $('#aai-generate-btn').data('post-id');
+
+                if (!postId) return;
+
+                $btn.prop('disabled', true).text('Analizowanie...');
+
+                $.ajax({
+                    url: aaiData.ajaxUrl,
+                    type: 'POST',
+                    data: {
+                        action: 'aai_analyze_article',
+                        post_id: postId,
+                        nonce: aaiData.nonce
+                    },
+                    timeout: 30000,
+                    success: function (response) {
+                        if (response.success && response.data.prompt) {
+                            $editor.val(response.data.prompt).addClass('is-modified');
+                            isModified = true;
+                            showMessage('info', 'Prompt wygenerowany na podstawie analizy artykułu. Możesz go edytować.');
+                        } else {
+                            showMessage('error', response.data.message || 'Nie udało się przeanalizować artykułu.');
+                        }
+                    },
+                    error: function (xhr, status) {
+                        var msg = status === 'timeout' ? 'Przekroczono czas oczekiwania.' : 'Błąd połączenia.';
+                        showMessage('error', msg);
+                    },
+                    complete: function () {
+                        $btn.prop('disabled', false).text('Analizuj artykuł');
+                    }
+                });
+            });
+        }
+    }
+
+    /**
+     * Obsługa historii obrazków i rollback
+     */
+    function initImageHistory() {
+        var $historyList = $('#aai-history-list');
+
+        if (!$historyList.length) return;
+
+        $historyList.on('click', '.aai-history-item', function (e) {
+            e.preventDefault();
+
+            var $item = $(this);
+            var attachmentId = $item.data('attachment-id');
+            var postId = $('#aai-generate-btn').data('post-id');
+
+            if (!postId || !attachmentId) return;
+
+            // Confirm rollback
+            if (!confirm('Przywrócić ten obrazek jako featured image?')) return;
+
+            $item.addClass('is-loading');
+
+            $.ajax({
+                url: aaiData.ajaxUrl,
+                type: 'POST',
+                data: {
+                    action: 'aai_rollback_image',
+                    post_id: postId,
+                    attachment_id: attachmentId,
+                    nonce: aaiData.nonce
+                },
+                success: function (response) {
+                    if (response.success) {
+                        showMessage('success', response.data.message);
+
+                        // Update image preview
+                        if (response.data.image_url) {
+                            var $currentImage = $('#aai-current-image');
+                            var $img = $('<img>', {
+                                src: response.data.image_url + '?t=' + Date.now(),
+                                alt: '',
+                                'class': 'aai-thumbnail-preview'
+                            });
+                            var $label = $('<p>', { 'class': 'aai-label', text: 'Aktualny Featured Image:' });
+                            $currentImage.empty().append($label).append($img);
+
+                            // Remove this item from history list
+                            $item.fadeOut(300, function () { $(this).remove(); });
+
+                            // Refresh Gutenberg
+                            refreshGutenbergFeaturedImage(response.data.attachment_id);
+                        }
+                    } else {
+                        showMessage('error', response.data.message);
+                    }
+                },
+                error: function () {
+                    showMessage('error', 'Błąd połączenia.');
+                },
+                complete: function () {
+                    $item.removeClass('is-loading');
+                }
+            });
+        });
+    }
+
+    /**
+     * Obsługa przycisku wariantów
+     */
+    function initVariantsButton() {
+        var $btn = $('#aai-variants-btn');
+
+        if (!$btn.length) return;
+
+        $btn.on('click', function(e) {
+            e.preventDefault();
+
+            var postId = $btn.data('post-id');
+            if (!postId) return;
+
+            // Get custom prompt if edited
+            var customPrompt = '';
+            var $promptEditor = $('#aai-prompt-editor');
+            if ($promptEditor.length && $promptEditor.hasClass('is-modified')) {
+                customPrompt = $promptEditor.val();
+            }
+
+            showVariantsModal(postId, customPrompt);
+        });
+    }
+
+    /**
+     * Modal z wariantami obrazków
+     */
+    function showVariantsModal(postId, customPrompt) {
+        // Build modal HTML
+        var html = '<div id="aai-variants-overlay" class="aai-variants-overlay">';
+        html += '<div class="aai-variants-modal">';
+        html += '<div class="aai-variants-header">';
+        html += '<h3>Warianty obrazka</h3>';
+        html += '<button type="button" class="aai-variants-close" id="aai-variants-close">&times;</button>';
+        html += '</div>';
+        html += '<div class="aai-variants-progress" id="aai-variants-progress">Generowanie wariantu 1 z 3...</div>';
+        html += '<div class="aai-variants-grid" id="aai-variants-grid">';
+        for (var i = 0; i < 3; i++) {
+            html += '<div class="aai-variant-card aai-variant-loading" id="aai-variant-' + i + '">';
+            html += '<div class="aai-variant-placeholder"><span class="spinner is-active"></span></div>';
+            html += '</div>';
+        }
+        html += '</div>';
+        html += '<div class="aai-variants-actions" id="aai-variants-actions" style="display:none;">';
+        html += '<button type="button" class="button" id="aai-variants-cancel">Odrzuć wszystkie</button>';
+        html += '</div>';
+        html += '</div></div>';
+
+        $('body').append(html);
+
+        var attachmentIds = [];
+        var completed = 0;
+        var selectedId = null;
+
+        // Generate 3 variants sequentially
+        function generateNext(index) {
+            if (index >= 3) {
+                $('#aai-variants-progress').text('Gotowe! Kliknij na obrazek, aby go wybrać.');
+                $('#aai-variants-actions').show();
+                return;
+            }
+
+            $('#aai-variants-progress').text('Generowanie wariantu ' + (index + 1) + ' z 3...');
+
+            var requestData = {
+                action: 'aai_generate_variant',
+                post_id: postId,
+                nonce: aaiData.nonce
+            };
+            if (customPrompt) {
+                requestData.custom_prompt = customPrompt;
+            }
+
+            $.ajax({
+                url: aaiData.ajaxUrl,
+                type: 'POST',
+                data: requestData,
+                timeout: 120000,
+                success: function(response) {
+                    var $card = $('#aai-variant-' + index);
+
+                    if (response.success) {
+                        attachmentIds[index] = response.data.attachment_id;
+                        $card.removeClass('aai-variant-loading').addClass('aai-variant-ready');
+                        $card.html(
+                            '<img src="' + response.data.image_url + '" alt="Wariant ' + (index + 1) + '" />' +
+                            '<div class="aai-variant-label">Wariant ' + (index + 1) + '</div>'
+                        );
+
+                        // Click to select
+                        $card.on('click', function() {
+                            if (selectedId) return; // Already selecting
+                            selectedId = response.data.attachment_id;
+                            $card.addClass('aai-variant-selected');
+                            selectVariant(postId, selectedId, attachmentIds);
+                        });
+                    } else {
+                        $card.removeClass('aai-variant-loading').addClass('aai-variant-error');
+                        $card.html('<div class="aai-variant-error-msg">' + escapeHtml(response.data.message || 'Błąd') + '</div>');
+                    }
+
+                    completed++;
+                },
+                error: function() {
+                    var $card = $('#aai-variant-' + index);
+                    $card.removeClass('aai-variant-loading').addClass('aai-variant-error');
+                    $card.html('<div class="aai-variant-error-msg">Błąd połączenia</div>');
+                    completed++;
+                },
+                complete: function() {
+                    generateNext(index + 1);
+                }
+            });
+        }
+
+        generateNext(0);
+
+        // Close/cancel handlers
+        $('#aai-variants-close, #aai-variants-cancel').on('click', function() {
+            // Delete all draft variants
+            attachmentIds.forEach(function(id) {
+                if (id && id !== selectedId) {
+                    $.post(aaiData.ajaxUrl, {
+                        action: 'aai_set_variant',
+                        post_id: postId,
+                        attachment_id: 0,
+                        reject_ids: [id],
+                        nonce: aaiData.nonce
+                    });
+                }
+            });
+            $('#aai-variants-overlay').remove();
+        });
+    }
+
+    /**
+     * Ustawia wybrany wariant jako featured image
+     */
+    function selectVariant(postId, attachmentId, allIds) {
+        var rejectIds = allIds.filter(function(id) { return id && id !== attachmentId; });
+
+        $('#aai-variants-progress').text('Ustawianie wybranego wariantu...');
+
+        $.ajax({
+            url: aaiData.ajaxUrl,
+            type: 'POST',
+            data: {
+                action: 'aai_set_variant',
+                post_id: postId,
+                attachment_id: attachmentId,
+                reject_ids: rejectIds,
+                nonce: aaiData.nonce
+            },
+            success: function(response) {
+                if (response.success) {
+                    // Update main image preview
+                    var $currentImage = $('#aai-current-image');
+                    var $img = $('<img>', {
+                        src: response.data.image_url + '?t=' + Date.now(),
+                        alt: '',
+                        'class': 'aai-thumbnail-preview'
+                    });
+                    var $label = $('<p>', { 'class': 'aai-label', text: 'Aktualny Featured Image:' });
+                    $currentImage.empty().append($label).append($img);
+
+                    var $btn = $('#aai-generate-btn');
+                    $btn.data('has-thumbnail', '1');
+                    $btn.find('.aai-btn-text').text('Regeneruj Featured Image');
+
+                    refreshGutenbergFeaturedImage(attachmentId);
+                    showMessage('success', response.data.message);
+                } else {
+                    showMessage('error', response.data.message || 'Błąd');
+                }
+            },
+            error: function() {
+                showMessage('error', 'Błąd połączenia.');
+            },
+            complete: function() {
+                $('#aai-variants-overlay').remove();
+            }
+        });
+    }
+
+    /**
+     * Obsługa przycisków upscale i edycji
+     */
+    function initUpscaleEdit() {
+        var $upscaleBtn = $('#aai-upscale-btn');
+        var $editBtn = $('#aai-edit-btn');
+        var $editWrap = $('#aai-edit-prompt-wrap');
+        var $editSubmit = $('#aai-edit-submit');
+
+        if (!$upscaleBtn.length) return;
+
+        // Upscale button
+        $upscaleBtn.on('click', function(e) {
+            e.preventDefault();
+            var postId = $(this).data('post-id');
+            var attachmentId = $(this).data('attachment-id');
+
+            if (!postId || !attachmentId) return;
+
+            $upscaleBtn.prop('disabled', true).text('Powiększanie...');
+
+            $.ajax({
+                url: aaiData.ajaxUrl,
+                type: 'POST',
+                data: {
+                    action: 'aai_upscale_image',
+                    post_id: postId,
+                    attachment_id: attachmentId,
+                    nonce: aaiData.nonce
+                },
+                timeout: 120000,
+                success: function(response) {
+                    if (response.success) {
+                        showMessage('success', response.data.message);
+                        updateImagePreviewAfterEdit(response.data);
+                    } else {
+                        showMessage('error', response.data.message || 'Błąd');
+                    }
+                },
+                error: function(xhr, status) {
+                    var msg = status === 'timeout' ? 'Przekroczono czas oczekiwania.' : 'Błąd połączenia.';
+                    showMessage('error', msg);
+                },
+                complete: function() {
+                    $upscaleBtn.prop('disabled', false).text('Powiększ');
+                }
+            });
+        });
+
+        // Edit toggle
+        $editBtn.on('click', function(e) {
+            e.preventDefault();
+            $editWrap.slideToggle(200);
+        });
+
+        // Edit submit
+        $editSubmit.on('click', function(e) {
+            e.preventDefault();
+            var postId = $(this).data('post-id');
+            var attachmentId = $(this).data('attachment-id');
+            var editPrompt = $('#aai-edit-prompt').val().trim();
+
+            if (!postId || !attachmentId || !editPrompt) {
+                showMessage('error', 'Opisz jakie zmiany chcesz wprowadzić.');
+                return;
+            }
+
+            $editSubmit.prop('disabled', true).text('Edytowanie...');
+
+            $.ajax({
+                url: aaiData.ajaxUrl,
+                type: 'POST',
+                data: {
+                    action: 'aai_edit_image',
+                    post_id: postId,
+                    attachment_id: attachmentId,
+                    edit_prompt: editPrompt,
+                    nonce: aaiData.nonce
+                },
+                timeout: 120000,
+                success: function(response) {
+                    if (response.success) {
+                        showMessage('success', response.data.message);
+                        updateImagePreviewAfterEdit(response.data);
+                        $('#aai-edit-prompt').val('');
+                        $editWrap.slideUp(200);
+                    } else {
+                        showMessage('error', response.data.message || 'Błąd');
+                    }
+                },
+                error: function(xhr, status) {
+                    var msg = status === 'timeout' ? 'Przekroczono czas oczekiwania.' : 'Błąd połączenia.';
+                    showMessage('error', msg);
+                },
+                complete: function() {
+                    $editSubmit.prop('disabled', false).text('Zastosuj edycję');
+                }
+            });
+        });
+
+        // Helper to update image preview after upscale/edit
+        function updateImagePreviewAfterEdit(data) {
+            if (data.image_url) {
+                var $currentImage = $('#aai-current-image');
+                var $img = $('<img>', {
+                    src: data.image_url + '?t=' + Date.now(),
+                    alt: '',
+                    'class': 'aai-thumbnail-preview'
+                });
+                var $label = $('<p>', { 'class': 'aai-label', text: 'Aktualny Featured Image:' });
+                $currentImage.empty().append($label).append($img);
+
+                // Update attachment IDs on buttons
+                $upscaleBtn.data('attachment-id', data.attachment_id);
+                $editSubmit.data('attachment-id', data.attachment_id);
+
+                // Refresh Gutenberg
+                refreshGutenbergFeaturedImage(data.attachment_id);
+
+                // Update tokens if available
+                if (data.tokens) {
+                    updateTokensDisplay(data.tokens);
+                }
+            }
+        }
     }
 
     /**

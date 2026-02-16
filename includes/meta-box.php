@@ -151,24 +151,133 @@ function aai_render_meta_box( $post ) {
                     ?>
                 </p>
             </div>
-            
+
+            <!-- Przycisk wariantów -->
+            <div class="aai-variants-section">
+                <button
+                    type="button"
+                    id="aai-variants-btn"
+                    class="button aai-variants-btn"
+                    data-post-id="<?php echo esc_attr( $post->ID ); ?>"
+                >
+                    <span class="aai-btn-text"><?php esc_html_e( 'Generuj 3 warianty', 'agencyjnie-ai-images' ); ?></span>
+                    <span class="aai-btn-spinner spinner" style="display: none;"></span>
+                </button>
+            </div>
+
+            <!-- Upscale i edycja -->
+            <?php if ( $has_thumbnail ) : ?>
+            <div class="aai-edit-section">
+                <div class="aai-edit-buttons">
+                    <button
+                        type="button"
+                        id="aai-upscale-btn"
+                        class="button button-small"
+                        data-post-id="<?php echo esc_attr( $post->ID ); ?>"
+                        data-attachment-id="<?php echo esc_attr( get_post_thumbnail_id( $post->ID ) ); ?>"
+                    >
+                        <?php esc_html_e( 'Powiększ', 'agencyjnie-ai-images' ); ?>
+                    </button>
+                    <button
+                        type="button"
+                        id="aai-edit-btn"
+                        class="button button-small"
+                    >
+                        <?php esc_html_e( 'Edytuj AI', 'agencyjnie-ai-images' ); ?>
+                    </button>
+                </div>
+                <div class="aai-edit-prompt-wrap" id="aai-edit-prompt-wrap" style="display:none;">
+                    <textarea id="aai-edit-prompt" class="aai-edit-prompt" rows="3" placeholder="<?php esc_attr_e( 'Opisz zmiany, np. "Zmień niebo na zachód słońca"', 'agencyjnie-ai-images' ); ?>"></textarea>
+                    <button
+                        type="button"
+                        id="aai-edit-submit"
+                        class="button button-primary button-small"
+                        data-post-id="<?php echo esc_attr( $post->ID ); ?>"
+                        data-attachment-id="<?php echo esc_attr( get_post_thumbnail_id( $post->ID ) ); ?>"
+                    >
+                        <?php esc_html_e( 'Zastosuj edycję', 'agencyjnie-ai-images' ); ?>
+                    </button>
+                </div>
+            </div>
+            <?php endif; ?>
+
             <!-- Komunikaty dla Featured Image -->
             <div id="aai-message" class="aai-message" style="display: none;"></div>
             
-            <!-- DISABLED: Sekcja "Obrazki w treści" (content-images.php jest wyłączony) -->
-
-            <!-- Podgląd promptu (opcjonalny, do debugowania) -->
-            <?php if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) : ?>
-                <div class="aai-debug-section">
-                    <button type="button" class="button aai-toggle-prompt" id="aai-toggle-prompt">
-                        <?php esc_html_e( 'Pokaż prompt', 'agencyjnie-ai-images' ); ?>
-                    </button>
-                    <div id="aai-prompt-preview" class="aai-prompt-preview" style="display: none;">
-                        <p class="aai-label"><?php esc_html_e( 'Prompt który zostanie wysłany:', 'agencyjnie-ai-images' ); ?></p>
-                        <pre class="aai-prompt-text"><?php echo esc_html( aai_build_prompt( $post->ID ) ); ?></pre>
+            <!-- Historia wygenerowanych obrazków -->
+            <?php
+            $image_history = get_post_meta( $post->ID, '_aai_image_history', true );
+            if ( is_array( $image_history ) && ! empty( $image_history ) ) :
+                // Filter out deleted attachments
+                $valid_history = array_filter( $image_history, function( $item ) {
+                    return wp_get_attachment_url( $item['attachment_id'] );
+                });
+                if ( ! empty( $valid_history ) ) :
+            ?>
+                <div class="aai-history-section">
+                    <span class="aai-label"><?php esc_html_e( 'Historia:', 'agencyjnie-ai-images' ); ?></span>
+                    <div class="aai-history-list" id="aai-history-list">
+                        <?php foreach ( array_slice( $valid_history, 0, 5 ) as $hist_item ) :
+                            $thumb_url = wp_get_attachment_image_url( $hist_item['attachment_id'], 'thumbnail' );
+                            if ( ! $thumb_url ) continue;
+                        ?>
+                            <div class="aai-history-item"
+                                 data-attachment-id="<?php echo esc_attr( $hist_item['attachment_id'] ); ?>"
+                                 title="<?php echo esc_attr( $hist_item['date'] ); ?>">
+                                <img src="<?php echo esc_url( $thumb_url ); ?>" alt="" />
+                                <span class="aai-history-rollback"><?php esc_html_e( 'Przywróć', 'agencyjnie-ai-images' ); ?></span>
+                            </div>
+                        <?php endforeach; ?>
                     </div>
                 </div>
-            <?php endif; ?>
+            <?php
+                endif;
+            endif;
+            ?>
+
+            <!-- DISABLED: Sekcja "Obrazki w treści" (content-images.php jest wyłączony) -->
+
+            <!-- Social media variants -->
+            <?php
+            $social_variants_enabled = aai_get_option( 'social_variants', false );
+            if ( $social_variants_enabled && function_exists( 'aai_get_social_variants' ) ) :
+                $social_variants = aai_get_social_variants( $post->ID );
+                if ( ! empty( $social_variants ) ) :
+            ?>
+                <div class="aai-social-section">
+                    <span class="aai-label"><?php esc_html_e( 'Social media:', 'agencyjnie-ai-images' ); ?></span>
+                    <div class="aai-social-list">
+                        <?php foreach ( $social_variants as $key => $variant ) : ?>
+                            <div class="aai-social-item" title="<?php echo esc_attr( $variant['label'] . ' (' . $variant['width'] . 'x' . $variant['height'] . ')' ); ?>">
+                                <img src="<?php echo esc_url( $variant['url'] ); ?>" alt="<?php echo esc_attr( $variant['label'] ); ?>" />
+                                <span class="aai-social-label"><?php echo esc_html( $variant['label'] ); ?></span>
+                            </div>
+                        <?php endforeach; ?>
+                    </div>
+                </div>
+            <?php
+                endif;
+            endif;
+            ?>
+
+            <!-- Podgląd i edytor promptu -->
+            <div class="aai-prompt-section">
+                <div class="aai-prompt-header">
+                    <span class="aai-label"><?php esc_html_e( 'Prompt:', 'agencyjnie-ai-images' ); ?></span>
+                    <div class="aai-prompt-buttons">
+                        <button type="button" class="button button-small" id="aai-analyze-article">
+                            <?php esc_html_e( 'Analizuj artykuł', 'agencyjnie-ai-images' ); ?>
+                        </button>
+                        <button type="button" class="button button-small aai-refresh-prompt" id="aai-refresh-prompt">
+                            <?php esc_html_e( 'Odśwież', 'agencyjnie-ai-images' ); ?>
+                        </button>
+                    </div>
+                </div>
+                <textarea id="aai-prompt-editor" class="aai-prompt-editor" rows="6"><?php echo esc_textarea( aai_build_prompt( $post->ID ) ); ?></textarea>
+                <p class="description aai-prompt-hint">
+                    <?php esc_html_e( 'Możesz edytować prompt przed generowaniem. Kliknij "Odśwież" aby przywrócić automatyczny.', 'agencyjnie-ai-images' ); ?>
+                </p>
+            </div>
             
         <?php endif; ?>
     </div>
