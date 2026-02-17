@@ -3,7 +3,7 @@ Contributors: agencyjnie
 Tags: ai, images, featured image, gemini, dalle, automatic images, gutenberg
 Requires at least: 5.8
 Tested up to: 6.7
-Stable tag: 1.4.2
+Stable tag: 2.0.0
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -49,6 +49,30 @@ Google Gemini API ma darmowy limit. Szczegóły znajdziesz w dokumentacji Google
 Obrazki są zapisywane w formacie PNG.
 
 == Changelog ==
+
+= 2.0.0 =
+* **Unified Tabbed UI** — Settings, Stats, Categories, Generator, Queue in one page
+* **Prompt Templates** — save and reuse favorite prompts
+* **Live Style Preview** — AI-generated preview images for all 18 art styles
+* **Prompt Chaining** — AI proposes 3 visual concepts, you pick the best one
+* **Watermark / Logo** — automatic logo overlay on generated images (GD)
+* **Generation Queue** — scan posts without images, batch generate with progress bar
+* **Standalone Generator** — generate images from prompt without a post (new tab)
+* **WooCommerce Product Shots** — upload product photo, describe scenes, AI generates lifestyle shots
+* **DALL-E 3 UX** — hide features unsupported by DALL-E 3 (reference images, upscale, analysis, product shots)
+* Removed GitHub token field from settings (auto-updater no longer loaded)
+
+= 1.9.0 =
+* Prompt editor with live preview and article analysis
+* Image variants (generate multiple options)
+* Statistics dashboard with token usage tracking
+* Upscale & image editing via Gemini
+* Social media OG image generation
+* Category-based style overrides
+* Negative prompt support
+* WebP conversion
+* Image language control
+* Bulk actions improvements
 
 = 1.4.2 =
 * Fixed Gemini Pro model — updated to gemini-3-pro-image-preview (old preview expired)
