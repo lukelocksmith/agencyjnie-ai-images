@@ -67,14 +67,6 @@ function aai_register_settings() {
         'aai_api_section'
     );
     
-    add_settings_field(
-        'github_token',
-        __( 'GitHub Token (auto-aktualizacje)', 'agencyjnie-ai-images' ),
-        'aai_render_github_token_field',
-        'agencyjnie-ai-images',
-        'aai_api_section'
-    );
-    
     // Sekcja: Styl obrazków
     add_settings_section(
         'aai_style_section',
@@ -148,6 +140,14 @@ function aai_register_settings() {
     );
 
     add_settings_field(
+        'watermark',
+        __( 'Watermark / Logo', 'agencyjnie-ai-images' ),
+        'aai_render_watermark_field',
+        'agencyjnie-ai-images',
+        'aai_style_section'
+    );
+
+    add_settings_field(
         'aai_social_variants',
         __( 'Warianty social media', 'agencyjnie-ai-images' ),
         'aai_render_social_variants_field',
@@ -193,6 +193,22 @@ function aai_register_settings() {
         'aai_render_post_types_field',
         'agencyjnie-ai-images',
         'aai_automation_section'
+    );
+
+    // Sekcja: Szablony promptów
+    add_settings_section(
+        'aai_templates_section',
+        __( 'Szablony promptów', 'agencyjnie-ai-images' ),
+        'aai_templates_section_callback',
+        'agencyjnie-ai-images'
+    );
+
+    add_settings_field(
+        'prompt_templates',
+        __( 'Szablony', 'agencyjnie-ai-images' ),
+        'aai_render_prompt_templates_field',
+        'agencyjnie-ai-images',
+        'aai_templates_section'
     );
 
 }
@@ -336,40 +352,6 @@ function aai_render_dalle_quality_field() {
 }
 
 /**
- * Pole: GitHub Token (auto-aktualizacje)
- */
-function aai_render_github_token_field() {
-    $token = aai_get_option( 'github_token', '' );
-    $display_token = ! empty( $token ) ? str_repeat( '*', 20 ) : '';
-    ?>
-    <div class="aai-api-key-row">
-        <input 
-            type="password" 
-            id="aai_github_token" 
-            name="aai_options[github_token]" 
-            value="<?php echo esc_attr( $display_token ); ?>" 
-            class="regular-text"
-            autocomplete="off"
-            placeholder="<?php echo ! empty( $token ) ? esc_attr__( 'Zmień token...', 'agencyjnie-ai-images' ) : esc_attr__( 'ghp_...', 'agencyjnie-ai-images' ); ?>"
-        />
-        <button type="button" class="button aai-toggle-password" data-target="aai_github_token">
-            <?php esc_html_e( 'Pokaż/Ukryj', 'agencyjnie-ai-images' ); ?>
-        </button>
-    </div>
-    <p class="description">
-        <?php 
-        printf(
-            esc_html__( 'Wymagany dla prywatnych repozytoriów. Utwórz token z uprawnieniem "repo". %s', 'agencyjnie-ai-images' ),
-            '<a href="https://github.com/settings/tokens/new?scopes=repo&description=AI+Images+Updater" target="_blank">' . esc_html__( 'Utwórz token', 'agencyjnie-ai-images' ) . '</a>'
-        );
-        ?>
-        <br>
-        <strong><?php esc_html_e( 'Aktualna wersja:', 'agencyjnie-ai-images' ); ?></strong> <?php echo esc_html( AAI_VERSION ); ?>
-    </p>
-    <?php
-}
-
-/**
  * Pole: Prompt bazowy
  */
 function aai_render_base_prompt_field() {
@@ -434,28 +416,144 @@ function aai_render_style_field() {
         'custom'           => __( 'Własny styl', 'agencyjnie-ai-images' ),
     );
     ?>
-    <select id="aai_style" name="aai_options[style]" class="aai-style-select">
+    <?php
+    // Build style descriptions for JS preview
+    $style_descriptions = aai_get_all_style_descriptions();
+
+    // Visual preview data: CSS gradient + user-friendly Polish description
+    $style_previews = array(
+        'photorealistic'    => array(
+            'gradient' => 'linear-gradient(135deg, #2c3e50 0%, #4ca1af 50%, #c4e0e5 100%)',
+            'desc'     => 'Realistyczne zdjęcie jak z aparatu. Ostre detale, naturalne kolory, kinowe oświetlenie. Idealne do artykułów, które potrzebują autentycznego wyglądu.',
+        ),
+        'digital_art'      => array(
+            'gradient' => 'linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%)',
+            'desc'     => 'Nowoczesna grafika cyfrowa z czystymi liniami i żywymi kolorami. Styl popularny na platformach kreatywnych — przyciągający, kolorowy i profesjonalny.',
+        ),
+        'isometric'        => array(
+            'gradient' => 'linear-gradient(135deg, #a8edea 0%, #fed6e3 50%, #d299c2 100%)',
+            'desc'     => 'Trójwymiarowe obiekty widziane pod kątem izometrycznym (jak w grach strategicznych). Czytelne, przyjemne dla oka, świetne do wizualizacji procesów i technologii.',
+        ),
+        'minimalist'       => array(
+            'gradient' => 'linear-gradient(135deg, #ffecd2 0%, #fcb69f 30%, #f8f9fa 100%)',
+            'desc'     => 'Prosty, spokojny design z dużą ilością białej przestrzeni. Pastelowe kolory, geometryczne kształty. Elegancki i czytelny — idealny do tematów lifestyle i biznes.',
+        ),
+        'cyberpunk'        => array(
+            'gradient' => 'linear-gradient(135deg, #0c0c1d 0%, #1a0533 30%, #ff00ff 60%, #00ffff 100%)',
+            'desc'     => 'Mroczna, futurystyczna atmosfera z neonowymi akcentami. Kolory magenty i cyjanu na ciemnym tle. Świetny do tematów technologicznych i futurystycznych.',
+        ),
+        'watercolor'       => array(
+            'gradient' => 'linear-gradient(135deg, #e8d5b7 0%, #f5e6cc 30%, #b8d4e3 60%, #d4e2d4 100%)',
+            'desc'     => 'Miękki, artystyczny styl imitujący akwarele na papierze. Delikatne przejścia kolorów, rozmyte krawędzie. Ciepły i kreatywny — idealny do tematów artystycznych.',
+        ),
+        'sketch'           => array(
+            'gradient' => 'linear-gradient(135deg, #f5f5f5 0%, #e0e0e0 40%, #d0d0d0 70%, #f0f0f0 100%)',
+            'desc'     => 'Czarno-biały rysunek ołówkiem z widocznymi kreskami i cieniowaniem. Klasyczny, elegancki styl — świetny do artykułów edukacyjnych i koncepcyjnych.',
+        ),
+        'pop_art'          => array(
+            'gradient' => 'linear-gradient(135deg, #ff6b6b 0%, #ffd93d 25%, #6bcb77 50%, #4d96ff 75%, #ff6b6b 100%)',
+            'desc'     => 'Odważne, nasycone kolory w stylu Andy\'ego Warhola i komiksów. Mocne kontury, płaskie plamy kolorów. Energetyczny i przykuwający uwagę.',
+        ),
+        'abstract'         => array(
+            'gradient' => 'linear-gradient(135deg, #ff9a9e 0%, #fad0c4 25%, #a18cd1 50%, #fbc2eb 75%, #ff9a9e 100%)',
+            'desc'     => 'Geometryczne kształty, żywe gradienty i abstrakcyjne formy. Nowoczesny, artystyczny styl — idealny gdy nie potrzebujesz konkretnego obiektu, a raczej nastroju.',
+        ),
+        'flat_illustration' => array(
+            'gradient' => 'linear-gradient(135deg, #43e97b 0%, #38f9d7 40%, #4facfe 100%)',
+            'desc'     => 'Czyste ilustracje wektorowe bez cieni i perspektywy. Styl znany z Dribbble i nowoczesnych aplikacji. Profesjonalny i czytelny na każdym urządzeniu.',
+        ),
+        '3d_render'        => array(
+            'gradient' => 'linear-gradient(135deg, #434343 0%, #000000 40%, #667eea 70%, #c4b5fd 100%)',
+            'desc'     => 'Błyszczące obiekty 3D z efektownym oświetleniem studyjnym. Plastikowy, lśniący wygląd znany z reklam produktów. Profesjonalny i premium.',
+        ),
+        'retro_vintage'    => array(
+            'gradient' => 'linear-gradient(135deg, #d4a574 0%, #c19a6b 30%, #8b7355 60%, #e8d5b0 100%)',
+            'desc'     => 'Wyblakłe kolory, ziarno filmu i ciepła tonacja jak ze starych zdjęć. Nostalgiczny klimat lat 60-80. Idealny do tematów historycznych i kulturalnych.',
+        ),
+        'neon_glow'        => array(
+            'gradient' => 'linear-gradient(135deg, #0a0a2e 0%, #1a0a3e 30%, #ff0080 50%, #7928ca 70%, #0a0a2e 100%)',
+            'desc'     => 'Świecące neony i efekty świetlne na ciemnym tle. Atmosfera nocnego miasta, klubu lub cyberprzestrzeni. Dynamiczny i przyciągający wzrok.',
+        ),
+        'paper_cut'        => array(
+            'gradient' => 'linear-gradient(135deg, #fff1eb 0%, #ace0f9 30%, #fff1eb 50%, #f5c6aa 80%, #fff1eb 100%)',
+            'desc'     => 'Efekt warstwowego papieru z wyraźnymi cieniami i głębią. Delikatny, rzemieślniczy wygląd jak papierowa wycinanka. Kreatywny i niepowtarzalny.',
+        ),
+        'pixel_art'        => array(
+            'gradient' => 'linear-gradient(135deg, #1a1a2e 0%, #16213e 30%, #e94560 50%, #0f3460 100%)',
+            'desc'     => 'Pikselowa grafika rodem z gier retro 16-bitowych. Nostalgiczny styl znany z klasycznych gier. Świetny do tematów gamingowych i tech.',
+        ),
+        'line_art'         => array(
+            'gradient' => 'linear-gradient(135deg, #fafafa 0%, #f0f0f0 30%, #333333 32%, #333333 34%, #f0f0f0 36%, #fafafa 100%)',
+            'desc'     => 'Eleganckie, minimalistyczne rysunki składające się z cienkich linii. Luksusowy, delikatny styl — idealny do tematów premium, mody i designu.',
+        ),
+        'gradient_mesh'    => array(
+            'gradient' => 'linear-gradient(135deg, #a855f7 0%, #ec4899 25%, #f97316 50%, #eab308 75%, #22c55e 100%)',
+            'desc'     => 'Płynne, kolorowe gradienty jak aurora borealis. Styl popularny w brandingu startupów i firm technologicznych. Nowoczesny i profesjonalny.',
+        ),
+        'collage'          => array(
+            'gradient' => 'linear-gradient(135deg, #f0e68c 0%, #dda0dd 25%, #98fb98 50%, #f08080 75%, #87ceeb 100%)',
+            'desc'     => 'Mix mediów: wycinki, tekstury, kolaż elementów jak z zina lub magazynu. Artystyczny, niekonwencjonalny styl dla odważnych treści editorial.',
+        ),
+    );
+    ?>
+    <?php
+    // Check which preview images already exist
+    $previews_dir = AAI_PLUGIN_DIR . 'assets/style-previews/';
+    $previews_url = AAI_PLUGIN_URL . 'assets/style-previews/';
+    $existing_previews = array();
+    foreach ( array_keys( $style_previews ) as $skey ) {
+        $webp_path = $previews_dir . $skey . '.webp';
+        if ( file_exists( $webp_path ) ) {
+            $existing_previews[ $skey ] = $previews_url . $skey . '.webp?v=' . filemtime( $webp_path );
+        }
+    }
+    ?>
+    <select id="aai_style" name="aai_options[style]" class="aai-style-select"
+        data-style-descriptions="<?php echo esc_attr( wp_json_encode( $style_descriptions ) ); ?>"
+        data-style-previews="<?php echo esc_attr( wp_json_encode( $style_previews ) ); ?>"
+        data-style-images="<?php echo esc_attr( wp_json_encode( $existing_previews ) ); ?>">
         <?php foreach ( $styles as $value => $label ) : ?>
             <option value="<?php echo esc_attr( $value ); ?>" <?php selected( $style, $value ); ?>>
                 <?php echo esc_html( $label ); ?>
             </option>
         <?php endforeach; ?>
     </select>
-    
+
+    <div id="aai-style-preview" class="aai-style-preview-box" <?php echo ( $style === 'custom' || empty( $style ) ) ? 'style="display:none;"' : ''; ?>>
+        <?php
+        if ( isset( $style_previews[ $style ] ) ) :
+            $sp = $style_previews[ $style ];
+            $has_image = isset( $existing_previews[ $style ] );
+        ?>
+            <div class="aai-style-preview-card">
+                <?php if ( $has_image ) : ?>
+                    <img class="aai-style-preview-thumb" src="<?php echo esc_url( $existing_previews[ $style ] ); ?>" alt="<?php echo esc_attr( $styles[ $style ] ?? '' ); ?>" />
+                <?php else : ?>
+                    <div class="aai-style-preview-thumb" style="background: <?php echo esc_attr( $sp['gradient'] ); ?>;"></div>
+                <?php endif; ?>
+                <div class="aai-style-preview-info">
+                    <strong class="aai-style-preview-name"><?php echo esc_html( $styles[ $style ] ?? '' ); ?></strong>
+                    <p class="aai-style-preview-desc"><?php echo esc_html( $sp['desc'] ); ?></p>
+                </div>
+            </div>
+        <?php endif; ?>
+    </div>
+
     <div id="aai_custom_style_wrapper" class="aai-custom-style-wrapper" style="<?php echo $style !== 'custom' ? 'display:none;' : ''; ?>">
-        <input 
-            type="text" 
-            id="aai_custom_style" 
-            name="aai_options[custom_style]" 
-            value="<?php echo esc_attr( $custom_style ); ?>" 
+        <input
+            type="text"
+            id="aai_custom_style"
+            name="aai_options[custom_style]"
+            value="<?php echo esc_attr( $custom_style ); ?>"
             class="regular-text"
             placeholder="<?php esc_attr_e( 'np. pixel art, retro 80s', 'agencyjnie-ai-images' ); ?>"
         />
     </div>
-    
+
     <p class="description">
         <?php esc_html_e( 'Wybierz gotowy preset stylu lub zdefiniuj własny.', 'agencyjnie-ai-images' ); ?>
     </p>
+
     <?php
 }
 
@@ -613,6 +711,73 @@ function aai_render_social_variants_field() {
 }
 
 /**
+ * Pole: Watermark / Logo
+ */
+function aai_render_watermark_field() {
+    $enabled  = aai_get_option( 'watermark_enabled', false );
+    $logo_url = aai_get_option( 'watermark_logo', '' );
+    $position = aai_get_option( 'watermark_position', 'bottom-right' );
+    $size     = aai_get_option( 'watermark_size', '10' );
+    $opacity  = aai_get_option( 'watermark_opacity', '50' );
+    ?>
+    <label style="display: block; margin-bottom: 10px;">
+        <input type="checkbox" name="aai_options[watermark_enabled]" value="1" <?php checked( $enabled, true ); ?> />
+        <?php esc_html_e( 'Włącz watermark na generowanych obrazkach', 'agencyjnie-ai-images' ); ?>
+    </label>
+
+    <div class="aai-watermark-settings" style="<?php echo ! $enabled ? 'opacity:0.5;' : ''; ?>">
+        <div style="margin-bottom: 10px;">
+            <label><strong><?php esc_html_e( 'Logo / Watermark:', 'agencyjnie-ai-images' ); ?></strong></label><br>
+            <div id="aai-watermark-preview" class="aai-watermark-preview">
+                <?php if ( ! empty( $logo_url ) ) : ?>
+                    <img src="<?php echo esc_url( $logo_url ); ?>" alt="Watermark" />
+                <?php endif; ?>
+            </div>
+            <input type="hidden" id="aai_watermark_logo" name="aai_options[watermark_logo]" value="<?php echo esc_url( $logo_url ); ?>" />
+            <button type="button" id="aai-upload-watermark" class="button button-secondary">
+                <?php esc_html_e( 'Wybierz logo', 'agencyjnie-ai-images' ); ?>
+            </button>
+            <?php if ( ! empty( $logo_url ) ) : ?>
+                <button type="button" id="aai-remove-watermark" class="button"><?php esc_html_e( 'Usuń', 'agencyjnie-ai-images' ); ?></button>
+            <?php endif; ?>
+        </div>
+
+        <div style="margin-bottom: 10px;">
+            <label><strong><?php esc_html_e( 'Pozycja:', 'agencyjnie-ai-images' ); ?></strong></label><br>
+            <select name="aai_options[watermark_position]">
+                <option value="bottom-right" <?php selected( $position, 'bottom-right' ); ?>><?php esc_html_e( 'Prawy dolny', 'agencyjnie-ai-images' ); ?></option>
+                <option value="bottom-left" <?php selected( $position, 'bottom-left' ); ?>><?php esc_html_e( 'Lewy dolny', 'agencyjnie-ai-images' ); ?></option>
+                <option value="top-right" <?php selected( $position, 'top-right' ); ?>><?php esc_html_e( 'Prawy górny', 'agencyjnie-ai-images' ); ?></option>
+                <option value="top-left" <?php selected( $position, 'top-left' ); ?>><?php esc_html_e( 'Lewy górny', 'agencyjnie-ai-images' ); ?></option>
+            </select>
+        </div>
+
+        <div style="margin-bottom: 10px;">
+            <label><strong><?php esc_html_e( 'Rozmiar (% szerokości obrazka):', 'agencyjnie-ai-images' ); ?></strong></label><br>
+            <select name="aai_options[watermark_size]">
+                <option value="5" <?php selected( $size, '5' ); ?>><?php esc_html_e( 'Mały (5%)', 'agencyjnie-ai-images' ); ?></option>
+                <option value="10" <?php selected( $size, '10' ); ?>><?php esc_html_e( 'Średni (10%)', 'agencyjnie-ai-images' ); ?></option>
+                <option value="15" <?php selected( $size, '15' ); ?>><?php esc_html_e( 'Duży (15%)', 'agencyjnie-ai-images' ); ?></option>
+            </select>
+        </div>
+
+        <div style="margin-bottom: 10px;">
+            <label><strong><?php esc_html_e( 'Przezroczystość:', 'agencyjnie-ai-images' ); ?></strong>
+                <span id="aai-opacity-value"><?php echo esc_html( $opacity ); ?>%</span>
+            </label><br>
+            <input type="range" name="aai_options[watermark_opacity]" min="10" max="100" step="5"
+                value="<?php echo esc_attr( $opacity ); ?>"
+                oninput="document.getElementById('aai-opacity-value').textContent = this.value + '%'" />
+        </div>
+    </div>
+
+    <p class="description">
+        <?php esc_html_e( 'Logo będzie nakładane na każdy wygenerowany obrazek. Wymaga biblioteki GD.', 'agencyjnie-ai-images' ); ?>
+    </p>
+    <?php
+}
+
+/**
  * Callback dla sekcji SEO
  */
 function aai_seo_section_callback() {
@@ -725,15 +890,6 @@ function aai_sanitize_options( $input ) {
         }
     }
     
-    // GitHub Token
-    if ( isset( $input['github_token'] ) ) {
-        if ( strpos( $input['github_token'], '***' ) !== false ) {
-            $sanitized['github_token'] = aai_get_option( 'github_token' );
-        } else {
-            $sanitized['github_token'] = aai_encrypt( sanitize_text_field( $input['github_token'] ) );
-        }
-    }
-    
     $allowed_models = array( 'gemini', 'gemini-pro', 'imagen3', 'dalle3' );
     if ( isset( $input['ai_model'] ) && in_array( $input['ai_model'], $allowed_models, true ) ) {
         $sanitized['ai_model'] = $input['ai_model'];
@@ -813,6 +969,21 @@ function aai_sanitize_options( $input ) {
     // Social media variants
     $sanitized['social_variants'] = ! empty( $input['social_variants'] ) ? 1 : 0;
 
+    // Watermark settings
+    $sanitized['watermark_enabled'] = ! empty( $input['watermark_enabled'] );
+    $sanitized['watermark_logo'] = isset( $input['watermark_logo'] ) ? esc_url_raw( $input['watermark_logo'] ) : '';
+
+    $allowed_positions = array( 'bottom-right', 'bottom-left', 'top-right', 'top-left' );
+    $sanitized['watermark_position'] = isset( $input['watermark_position'] ) && in_array( $input['watermark_position'], $allowed_positions, true )
+        ? $input['watermark_position'] : 'bottom-right';
+
+    $allowed_sizes = array( '5', '10', '15' );
+    $sanitized['watermark_size'] = isset( $input['watermark_size'] ) && in_array( $input['watermark_size'], $allowed_sizes, true )
+        ? $input['watermark_size'] : '10';
+
+    $opacity = isset( $input['watermark_opacity'] ) ? absint( $input['watermark_opacity'] ) : 50;
+    $sanitized['watermark_opacity'] = max( 10, min( 100, $opacity ) );
+
     // Obsługiwane typy postów
     if ( isset( $input['post_types'] ) && is_array( $input['post_types'] ) ) {
         $allowed_post_types = array_keys( get_post_types( array( 'public' => true ) ) );
@@ -822,6 +993,26 @@ function aai_sanitize_options( $input ) {
         $sanitized['post_types'] = array_values( $sanitized['post_types'] );
     } else {
         $sanitized['post_types'] = array( 'post' ); // Default
+    }
+
+    // Szablony promptów
+    if ( isset( $input['prompt_templates'] ) && is_array( $input['prompt_templates'] ) ) {
+        $sanitized['prompt_templates'] = array();
+        foreach ( $input['prompt_templates'] as $tpl ) {
+            $name   = isset( $tpl['name'] ) ? sanitize_text_field( $tpl['name'] ) : '';
+            $prompt = isset( $tpl['prompt'] ) ? sanitize_textarea_field( $tpl['prompt'] ) : '';
+            if ( ! empty( $name ) && ! empty( $prompt ) ) {
+                $sanitized['prompt_templates'][] = array(
+                    'name'   => $name,
+                    'prompt' => $prompt,
+                );
+            }
+        }
+        // Limit 20 templates
+        $sanitized['prompt_templates'] = array_slice( $sanitized['prompt_templates'], 0, 20 );
+    } else {
+        // Preserve existing templates if not in form submission
+        $sanitized['prompt_templates'] = aai_get_option( 'prompt_templates', array() );
     }
 
     // Obrazki referencyjne
@@ -838,29 +1029,81 @@ function aai_sanitize_options( $input ) {
 }
 
 /**
- * Renderowanie strony ustawień
+ * Renderowanie strony ustawień z zakładkami
  */
 function aai_render_settings_page() {
-    // Sprawdzenie uprawnień
     if ( ! current_user_can( 'manage_options' ) ) {
         return;
     }
+
+    $current_tab = isset( $_GET['tab'] ) ? sanitize_key( $_GET['tab'] ) : 'settings';
+    $tabs = array(
+        'settings'   => __( 'Ustawienia', 'agencyjnie-ai-images' ),
+        'stats'      => __( 'Statystyki', 'agencyjnie-ai-images' ),
+        'categories' => __( 'Kategorie', 'agencyjnie-ai-images' ),
+        'generator'  => __( 'Generator', 'agencyjnie-ai-images' ),
+        'queue'      => __( 'Kolejka', 'agencyjnie-ai-images' ),
+    );
+
+    if ( ! isset( $tabs[ $current_tab ] ) ) {
+        $current_tab = 'settings';
+    }
     ?>
     <div class="wrap aai-settings-wrap">
-        <h1><?php echo esc_html( get_admin_page_title() ); ?></h1>
-        
-        <div class="aai-settings-header">
-            <p><?php esc_html_e( 'Skonfiguruj automatyczne generowanie obrazków featured image przy użyciu AI (Gemini / DALL-E 3).', 'agencyjnie-ai-images' ); ?></p>
-        </div>
-        
-        <form method="post" action="options.php">
-            <?php
-            settings_fields( 'aai_settings_group' );
-            do_settings_sections( 'agencyjnie-ai-images' );
-            submit_button( __( 'Zapisz ustawienia', 'agencyjnie-ai-images' ) );
+        <h1><?php esc_html_e( 'AI Images', 'agencyjnie-ai-images' ); ?></h1>
+
+        <nav class="nav-tab-wrapper aai-nav-tabs">
+            <?php foreach ( $tabs as $tab_key => $tab_label ) :
+                $url = admin_url( 'options-general.php?page=agencyjnie-ai-images&tab=' . $tab_key );
+                $active = ( $current_tab === $tab_key ) ? ' nav-tab-active' : '';
             ?>
-        </form>
+                <a href="<?php echo esc_url( $url ); ?>" class="nav-tab<?php echo esc_attr( $active ); ?>">
+                    <?php echo esc_html( $tab_label ); ?>
+                </a>
+            <?php endforeach; ?>
+        </nav>
+
+        <div class="aai-tab-content">
+            <?php
+            switch ( $current_tab ) {
+                case 'stats':
+                    aai_render_stats_page();
+                    break;
+                case 'categories':
+                    aai_render_category_styles_page();
+                    break;
+                case 'generator':
+                    aai_render_generator_tab();
+                    break;
+                case 'queue':
+                    aai_render_queue_tab();
+                    break;
+                default:
+                    aai_render_settings_tab();
+                    break;
+            }
+            ?>
+        </div>
     </div>
+    <?php
+}
+
+/**
+ * Renderowanie zakładki ustawień (formularz)
+ */
+function aai_render_settings_tab() {
+    ?>
+    <div class="aai-settings-header">
+        <p><?php esc_html_e( 'Skonfiguruj automatyczne generowanie obrazków featured image przy użyciu AI (Gemini / DALL-E 3).', 'agencyjnie-ai-images' ); ?></p>
+    </div>
+
+    <form method="post" action="options.php">
+        <?php
+        settings_fields( 'aai_settings_group' );
+        do_settings_sections( 'agencyjnie-ai-images' );
+        submit_button( __( 'Zapisz ustawienia', 'agencyjnie-ai-images' ) );
+        ?>
+    </form>
     <?php
 }
 /**
@@ -892,4 +1135,159 @@ function aai_render_reference_images_field() {
         <?php esc_html_e( 'Wybierz do 3 obrazków, które posłużą jako wzór stylu dla generowanych grafik (tylko Gemini).', 'agencyjnie-ai-images' ); ?>
     </p>
     <?php
+}
+
+/**
+ * Callback dla sekcji szablonów promptów
+ */
+function aai_templates_section_callback() {
+    echo '<p>' . esc_html__( 'Zapisz często używane prompty jako szablony do szybkiego użycia w edytorze postów.', 'agencyjnie-ai-images' ) . '</p>';
+}
+
+/**
+ * Pole: Szablony promptów
+ */
+function aai_render_prompt_templates_field() {
+    $templates = aai_get_option( 'prompt_templates', array() );
+    if ( ! is_array( $templates ) ) {
+        $templates = array();
+    }
+    ?>
+    <div id="aai-templates-list" class="aai-templates-list">
+        <?php if ( ! empty( $templates ) ) : ?>
+            <?php foreach ( $templates as $index => $template ) : ?>
+                <div class="aai-template-row">
+                    <input
+                        type="text"
+                        name="aai_options[prompt_templates][<?php echo esc_attr( $index ); ?>][name]"
+                        value="<?php echo esc_attr( $template['name'] ); ?>"
+                        placeholder="<?php esc_attr_e( 'Nazwa szablonu', 'agencyjnie-ai-images' ); ?>"
+                        class="regular-text aai-template-name"
+                    />
+                    <textarea
+                        name="aai_options[prompt_templates][<?php echo esc_attr( $index ); ?>][prompt]"
+                        rows="2"
+                        class="large-text aai-template-prompt"
+                        placeholder="<?php esc_attr_e( 'Treść promptu...', 'agencyjnie-ai-images' ); ?>"
+                    ><?php echo esc_textarea( $template['prompt'] ); ?></textarea>
+                    <button type="button" class="button aai-remove-template" title="<?php esc_attr_e( 'Usuń', 'agencyjnie-ai-images' ); ?>">&times;</button>
+                </div>
+            <?php endforeach; ?>
+        <?php endif; ?>
+    </div>
+    <button type="button" id="aai-add-template" class="button button-secondary">
+        <?php esc_html_e( '+ Dodaj szablon', 'agencyjnie-ai-images' ); ?>
+    </button>
+    <p class="description">
+        <?php esc_html_e( 'Szablony będą dostępne w edytorze postów jako szybki wybór w meta boxie AI Image Generator.', 'agencyjnie-ai-images' ); ?>
+    </p>
+    <?php
+}
+
+/**
+ * Renderowanie zakładki Generator (standalone image generation)
+ */
+function aai_render_generator_tab() {
+    $api_key    = aai_get_secure_option( 'api_key' );
+    $openai_key = aai_get_secure_option( 'openai_api_key' );
+    $has_key    = ! empty( $api_key ) || ! empty( $openai_key );
+
+    if ( ! $has_key ) {
+        echo '<div class="notice notice-warning"><p>';
+        printf(
+            esc_html__( 'Brak klucza API. %s', 'agencyjnie-ai-images' ),
+            '<a href="' . esc_url( admin_url( 'options-general.php?page=agencyjnie-ai-images&tab=settings' ) ) . '">' .
+            esc_html__( 'Skonfiguruj wtyczkę', 'agencyjnie-ai-images' ) . '</a>'
+        );
+        echo '</p></div>';
+        return;
+    }
+
+    $styles = aai_get_all_style_descriptions();
+    $ratios = array( '16:9' => '16:9', '4:3' => '4:3', '1:1' => '1:1', '3:4' => '3:4', '9:16' => '9:16' );
+    $current_style = aai_get_option( 'style', 'photorealistic' );
+    $current_ratio = aai_get_option( 'aspect_ratio', '16:9' );
+
+    // Get recent standalone generations from transient
+    $history = get_transient( 'aai_standalone_history_' . get_current_user_id() );
+    if ( ! is_array( $history ) ) {
+        $history = array();
+    }
+    ?>
+    <div class="aai-generator-wrap">
+        <div class="aai-generator-form">
+            <div class="aai-generator-field">
+                <label for="aai-gen-prompt"><strong><?php esc_html_e( 'Prompt:', 'agencyjnie-ai-images' ); ?></strong></label>
+                <textarea id="aai-gen-prompt" class="large-text" rows="5" placeholder="<?php esc_attr_e( 'Opisz obrazek, który chcesz wygenerować...', 'agencyjnie-ai-images' ); ?>"></textarea>
+            </div>
+
+            <div class="aai-generator-options">
+                <div class="aai-generator-field aai-generator-field-half">
+                    <label for="aai-gen-style"><strong><?php esc_html_e( 'Styl:', 'agencyjnie-ai-images' ); ?></strong></label>
+                    <select id="aai-gen-style">
+                        <?php foreach ( $styles as $key => $desc ) : ?>
+                            <option value="<?php echo esc_attr( $key ); ?>" <?php selected( $current_style, $key ); ?>>
+                                <?php echo esc_html( $key ); ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <div class="aai-generator-field aai-generator-field-half">
+                    <label for="aai-gen-ratio"><strong><?php esc_html_e( 'Proporcje:', 'agencyjnie-ai-images' ); ?></strong></label>
+                    <select id="aai-gen-ratio">
+                        <?php foreach ( $ratios as $val => $label ) : ?>
+                            <option value="<?php echo esc_attr( $val ); ?>" <?php selected( $current_ratio, $val ); ?>>
+                                <?php echo esc_html( $label ); ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+            </div>
+
+            <button type="button" id="aai-gen-submit" class="button button-primary button-hero">
+                <span class="aai-btn-text"><?php esc_html_e( 'Generuj obrazek', 'agencyjnie-ai-images' ); ?></span>
+                <span class="aai-btn-spinner spinner" style="display: none;"></span>
+            </button>
+        </div>
+
+        <div id="aai-gen-message" class="aai-message" style="display: none;"></div>
+
+        <div id="aai-gen-result" class="aai-generator-result" style="display: none;">
+            <img id="aai-gen-result-img" src="" alt="" />
+            <div class="aai-generator-result-actions">
+                <a id="aai-gen-download" href="#" download class="button"><?php esc_html_e( 'Pobierz', 'agencyjnie-ai-images' ); ?></a>
+                <a id="aai-gen-media-link" href="#" target="_blank" class="button"><?php esc_html_e( 'Otwórz w Media Library', 'agencyjnie-ai-images' ); ?></a>
+                <button type="button" id="aai-gen-another" class="button button-primary"><?php esc_html_e( 'Generuj kolejny', 'agencyjnie-ai-images' ); ?></button>
+            </div>
+        </div>
+
+        <?php if ( ! empty( $history ) ) : ?>
+            <div class="aai-generator-history">
+                <h3><?php esc_html_e( 'Ostatnio wygenerowane:', 'agencyjnie-ai-images' ); ?></h3>
+                <div class="aai-generator-history-grid">
+                    <?php foreach ( array_slice( $history, 0, 5 ) as $item ) :
+                        $thumb_url = wp_get_attachment_image_url( $item['attachment_id'], 'thumbnail' );
+                        if ( ! $thumb_url ) continue;
+                        $edit_url = admin_url( 'upload.php?item=' . $item['attachment_id'] );
+                    ?>
+                        <div class="aai-generator-history-item">
+                            <a href="<?php echo esc_url( $edit_url ); ?>" target="_blank">
+                                <img src="<?php echo esc_url( $thumb_url ); ?>" alt="" />
+                            </a>
+                        </div>
+                    <?php endforeach; ?>
+                </div>
+            </div>
+        <?php endif; ?>
+    </div>
+    <?php
+}
+
+/**
+ * Renderowanie zakładki Kolejka
+ */
+function aai_render_queue_tab() {
+    if ( function_exists( 'aai_render_queue_tab_content' ) ) {
+        aai_render_queue_tab_content();
+    }
 }

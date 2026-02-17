@@ -5,7 +5,30 @@
 /* ===== Strona ustawień ===== */
 
 .aai-settings-wrap {
-    max-width: 800px;
+    max-width: 900px;
+}
+
+/* Unified Nav Tabs */
+.aai-nav-tabs {
+    margin-bottom: 0;
+    border-bottom: 1px solid #c3c4c7;
+}
+
+.aai-nav-tabs .nav-tab {
+    font-size: 13px;
+    font-weight: 500;
+}
+
+.aai-nav-tabs .nav-tab-active {
+    background: #fff;
+    border-bottom-color: #fff;
+}
+
+.aai-tab-content {
+    background: #fff;
+    border: 1px solid #c3c4c7;
+    border-top: none;
+    padding: 20px;
 }
 
 .aai-settings-header {
@@ -104,6 +127,54 @@
     margin-top: 5px;
 }
 
+/* Style preview box */
+.aai-style-preview-box {
+    margin-top: 10px;
+    max-width: 500px;
+}
+
+.aai-style-preview-card {
+    display: flex;
+    gap: 14px;
+    align-items: flex-start;
+    background: #fff;
+    border: 1px solid #c7d2fe;
+    border-radius: 8px;
+    padding: 12px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+}
+
+img.aai-style-preview-thumb,
+div.aai-style-preview-thumb {
+    flex-shrink: 0;
+    width: 120px;
+    height: 120px;
+    border-radius: 6px;
+    box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.08);
+    object-fit: cover;
+}
+
+.aai-style-preview-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.aai-style-preview-name {
+    display: block;
+    font-size: 13px;
+    font-weight: 600;
+    color: #1e1b4b;
+    margin-bottom: 4px;
+}
+
+.aai-style-preview-desc {
+    font-size: 12px;
+    line-height: 1.5;
+    color: #4b5563;
+    margin: 0;
+}
+
+
 /* Własny styl */
 .aai-custom-style-wrapper {
     margin-top: 10px;
@@ -151,6 +222,377 @@
 .aai-api-key-wrapper .aai-test-result {
     display: block;
     margin-top: 8px;
+}
+
+/* ===== Prompt Templates ===== */
+.aai-templates-list {
+    margin-bottom: 10px;
+}
+
+.aai-template-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: flex-start;
+    padding: 10px;
+    background: #f9f9f9;
+    border: 1px solid #e5e7eb;
+    border-radius: 4px;
+    margin-bottom: 8px;
+}
+
+.aai-template-row .aai-template-name {
+    flex: 0 0 200px;
+}
+
+.aai-template-row .aai-template-prompt {
+    flex: 1 1 300px;
+    min-width: 200px;
+}
+
+.aai-template-row .aai-remove-template {
+    color: #dc3545 !important;
+    border-color: #dc3545 !important;
+    font-size: 18px !important;
+    line-height: 1 !important;
+    padding: 4px 10px !important;
+    flex-shrink: 0;
+    align-self: flex-start;
+    margin-top: 2px;
+}
+
+.aai-template-row .aai-remove-template:hover {
+    background: #dc3545 !important;
+    color: #fff !important;
+}
+
+.aai-template-select {
+    width: 100%;
+    margin-bottom: 6px;
+    font-size: 12px;
+}
+
+/* ===== Concept Chaining Panel ===== */
+.aai-concepts-panel {
+    margin: 10px 0;
+    padding: 10px;
+    background: #f0f7ff;
+    border: 1px solid #93c5fd;
+    border-radius: 6px;
+}
+
+.aai-concepts-header {
+    margin-bottom: 8px;
+    font-size: 12px;
+    color: #1e40af;
+}
+
+.aai-concept-card {
+    background: #fff;
+    border: 1px solid #dbeafe;
+    border-radius: 4px;
+    padding: 8px 10px;
+    margin-bottom: 6px;
+    cursor: pointer;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.aai-concept-card:hover {
+    border-color: #2563eb;
+    box-shadow: 0 1px 4px rgba(37, 99, 235, 0.15);
+}
+
+.aai-concept-title {
+    font-weight: 600;
+    font-size: 12px;
+    color: #1e293b;
+    margin-bottom: 4px;
+}
+
+.aai-concept-prompt {
+    font-size: 11px;
+    color: #64748b;
+    line-height: 1.4;
+    margin-bottom: 6px;
+}
+
+.aai-concept-use {
+    font-size: 11px !important;
+    padding: 2px 10px !important;
+}
+
+.aai-concepts-close {
+    margin-top: 4px;
+    font-size: 11px !important;
+    width: 100%;
+    text-align: center;
+}
+
+#aai-generate-concepts {
+    background: #f5f3ff !important;
+    border-color: #7c3aed !important;
+    color: #7c3aed !important;
+    font-size: 11px !important;
+}
+
+#aai-generate-concepts:hover {
+    background: #ede9fe !important;
+}
+
+/* ===== WooCommerce Product Shots ===== */
+.aai-product-shots-wrap {
+    padding: 8px 0;
+}
+
+.aai-ps-section {
+    margin-bottom: 12px;
+}
+
+.aai-ps-source-preview {
+    margin: 6px 0;
+}
+
+.aai-ps-source-preview img {
+    max-width: 100%;
+    height: auto;
+    border-radius: 4px;
+    border: 1px solid #ddd;
+}
+
+.aai-ps-scene-row {
+    margin-bottom: 8px;
+}
+
+.aai-ps-preset {
+    width: 100%;
+    margin-bottom: 4px;
+    font-size: 12px;
+}
+
+.aai-ps-scene-prompt {
+    width: 100%;
+    font-size: 12px;
+    border: 1px solid #c3c4c7;
+    border-radius: 4px;
+    padding: 6px 8px;
+    resize: vertical;
+}
+
+.aai-ps-progress {
+    text-align: center;
+    padding: 8px;
+    font-size: 12px;
+    color: #64748b;
+}
+
+.aai-ps-results {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: 8px;
+}
+
+.aai-ps-result-card {
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+    overflow: hidden;
+}
+
+.aai-ps-result-card img {
+    width: 100%;
+    height: auto;
+    display: block;
+}
+
+.aai-ps-result-actions {
+    padding: 6px;
+    text-align: center;
+    background: #f8fafc;
+}
+
+.aai-ps-result-error {
+    padding: 8px;
+    background: #fef2f2;
+    border: 1px solid #fca5a5;
+    border-radius: 4px;
+    color: #dc2626;
+    font-size: 12px;
+}
+
+/* ===== Generation Queue ===== */
+.aai-queue-wrap {
+    max-width: 700px;
+}
+
+.aai-queue-header p {
+    color: #475569;
+    font-size: 13px;
+    margin-bottom: 16px;
+}
+
+.aai-queue-controls {
+    display: flex;
+    align-items: center;
+    margin-bottom: 16px;
+}
+
+.aai-queue-controls label {
+    font-size: 13px;
+    color: #475569;
+    cursor: pointer;
+}
+
+.aai-queue-progress {
+    margin-bottom: 16px;
+}
+
+.aai-queue-list {
+    max-height: 400px;
+    overflow-y: auto;
+    margin-bottom: 16px;
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+}
+
+.aai-queue-list:empty {
+    display: none;
+}
+
+.aai-queue-list .aai-bulk-item {
+    border-bottom: 1px solid #f1f5f9;
+}
+
+.aai-queue-list .aai-bulk-item:last-child {
+    border-bottom: none;
+}
+
+.aai-queue-thumb {
+    width: 32px;
+    height: 32px;
+    object-fit: cover;
+    border-radius: 4px;
+    border: 1px solid #e5e7eb;
+}
+
+.aai-queue-actions {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 16px;
+}
+
+/* ===== Standalone Generator ===== */
+.aai-generator-wrap {
+    max-width: 700px;
+}
+
+.aai-generator-field {
+    margin-bottom: 16px;
+}
+
+.aai-generator-field label {
+    display: block;
+    margin-bottom: 6px;
+    font-size: 13px;
+}
+
+.aai-generator-options {
+    display: flex;
+    gap: 16px;
+    margin-bottom: 16px;
+}
+
+.aai-generator-field-half {
+    flex: 1;
+}
+
+.aai-generator-field-half select {
+    width: 100%;
+}
+
+#aai-gen-submit {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+#aai-gen-submit .spinner {
+    float: none;
+    margin: 0;
+}
+
+.aai-generator-result {
+    margin-top: 20px;
+    text-align: center;
+}
+
+.aai-generator-result img {
+    max-width: 100%;
+    height: auto;
+    border-radius: 6px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    margin-bottom: 16px;
+}
+
+.aai-generator-result-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+}
+
+.aai-generator-history {
+    margin-top: 30px;
+    padding-top: 20px;
+    border-top: 1px solid #e5e7eb;
+}
+
+.aai-generator-history h3 {
+    font-size: 14px;
+    margin: 0 0 12px;
+}
+
+.aai-generator-history-grid {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.aai-generator-history-item {
+    width: 80px;
+    height: 80px;
+    border-radius: 4px;
+    overflow: hidden;
+    border: 1px solid #ddd;
+    transition: border-color 0.2s;
+}
+
+.aai-generator-history-item:hover {
+    border-color: #2563eb;
+}
+
+.aai-generator-history-item img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+
+/* ===== Watermark Preview ===== */
+.aai-watermark-preview {
+    margin: 8px 0;
+    max-width: 150px;
+}
+
+.aai-watermark-preview img {
+    max-width: 100%;
+    height: auto;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    background: repeating-conic-gradient(#f0f0f0 0% 25%, #fff 0% 50%) 50% / 16px 16px;
+    padding: 8px;
+}
+
+.aai-watermark-settings {
+    transition: opacity 0.3s;
 }
 
 /* ===== Meta box w edytorze ===== */

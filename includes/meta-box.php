@@ -265,14 +265,32 @@ function aai_render_meta_box( $post ) {
                 <div class="aai-prompt-header">
                     <span class="aai-label"><?php esc_html_e( 'Prompt:', 'agencyjnie-ai-images' ); ?></span>
                     <div class="aai-prompt-buttons">
+                        <button type="button" class="button button-small" id="aai-generate-concepts">
+                            <?php esc_html_e( 'Koncepcje', 'agencyjnie-ai-images' ); ?>
+                        </button>
                         <button type="button" class="button button-small" id="aai-analyze-article">
-                            <?php esc_html_e( 'Analizuj artykuł', 'agencyjnie-ai-images' ); ?>
+                            <?php esc_html_e( 'Analizuj', 'agencyjnie-ai-images' ); ?>
                         </button>
                         <button type="button" class="button button-small aai-refresh-prompt" id="aai-refresh-prompt">
                             <?php esc_html_e( 'Odśwież', 'agencyjnie-ai-images' ); ?>
                         </button>
                     </div>
                 </div>
+
+                <?php
+                $prompt_templates = aai_get_option( 'prompt_templates', array() );
+                if ( ! empty( $prompt_templates ) && is_array( $prompt_templates ) ) :
+                ?>
+                <select id="aai-template-select" class="aai-template-select">
+                    <option value=""><?php esc_html_e( 'Użyj szablonu...', 'agencyjnie-ai-images' ); ?></option>
+                    <?php foreach ( $prompt_templates as $tpl ) : ?>
+                        <option value="<?php echo esc_attr( $tpl['prompt'] ); ?>">
+                            <?php echo esc_html( $tpl['name'] ); ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+                <?php endif; ?>
+
                 <textarea id="aai-prompt-editor" class="aai-prompt-editor" rows="6"><?php echo esc_textarea( aai_build_prompt( $post->ID ) ); ?></textarea>
                 <p class="description aai-prompt-hint">
                     <?php esc_html_e( 'Możesz edytować prompt przed generowaniem. Kliknij "Odśwież" aby przywrócić automatyczny.', 'agencyjnie-ai-images' ); ?>

@@ -9,19 +9,67 @@
      * Inicjalizacja po załadowaniu DOM
      */
     $(document).ready(function () {
+        initModelFeatureVisibility();
         initBulkGenerate();
         initReferenceImages();
         initGenerateButton();
         initTestConnection();
         initTestOpenAIConnection();
         initStyleToggle();
+        initStylePreview();
         initColorPickers();
         initPasswordToggle();
+        initPromptTemplates();
+        initConceptChaining();
         initPromptPreview();
         initImageHistory();
         initVariantsButton();
         initUpscaleEdit();
+        initWatermarkUpload();
+        initStandaloneGenerator();
+        initGenerationQueue();
+        initProductShots();
     });
+
+    /**
+     * Show/hide features based on selected AI model.
+     * DALL-E 3 does not support: reference images, article analysis,
+     * visual concepts, upscale/edit, WooCommerce product shots, auto ALT.
+     */
+    function initModelFeatureVisibility() {
+        var model = (typeof aaiData !== 'undefined' && aaiData.aiModel) ? aaiData.aiModel : 'gemini';
+        var isDalle = (model === 'dalle3');
+
+        // Settings page: hide Gemini-only setting rows using their container IDs
+        if (isDalle) {
+            $('#aai_reference_images_container').closest('tr').hide();
+            $('input[name="aai_options[auto_generate_alt]"]').closest('tr').hide();
+        }
+        // DALL-E quality — show only when DALL-E selected
+        $('#aai_dalle_quality').closest('tr').toggle(isDalle);
+
+        // Post editor: hide Gemini-only buttons
+        if (isDalle) {
+            $('#aai-analyze-article').hide();
+            $('#aai-concepts-btn').hide();
+            $('#aai-upscale-btn').hide();
+        }
+
+        // WooCommerce product shots meta box — Gemini only
+        if (isDalle) {
+            $('#aai_product_shots_box').hide();
+        }
+
+        // Settings page: react to model dropdown change for live toggle
+        $('input[name="aai_options[ai_model]"]').on('change', function () {
+            var newModel = $(this).val();
+            var newIsDalle = (newModel === 'dalle3');
+
+            $('#aai_reference_images_container').closest('tr').toggle(!newIsDalle);
+            $('input[name="aai_options[auto_generate_alt]"]').closest('tr').toggle(!newIsDalle);
+            $('#aai_dalle_quality').closest('tr').toggle(newIsDalle);
+        });
+    }
 
     /**
      * Obsługa przycisku generowania obrazka
@@ -344,6 +392,58 @@
     }
 
     /**
+     * Live style preview — shows AI-generated thumbnail + description when dropdown changes
+     */
+    function initStylePreview() {
+        var $select = $('#aai_style');
+        var $preview = $('#aai-style-preview');
+
+        if (!$select.length || !$preview.length) return;
+
+        var previews = {};
+        var images = {};
+        try {
+            previews = JSON.parse($select.attr('data-style-previews') || '{}');
+            images = JSON.parse($select.attr('data-style-images') || '{}');
+        } catch (e) {
+            return;
+        }
+
+        function renderPreview(styleKey) {
+            var data = previews[styleKey];
+            if (!data || styleKey === 'custom') {
+                $preview.slideUp(200);
+                return;
+            }
+
+            var label = $select.find('option[value="' + styleKey + '"]').text().trim();
+            var imgUrl = images[styleKey] || '';
+            var thumbHtml;
+
+            if (imgUrl) {
+                thumbHtml = '<img class="aai-style-preview-thumb" src="' + escapeHtml(imgUrl) + '" alt="' + escapeHtml(label) + '" />';
+            } else {
+                thumbHtml = '<div class="aai-style-preview-thumb" style="background: ' + data.gradient + ';"></div>';
+            }
+
+            $preview.html(
+                '<div class="aai-style-preview-card">' +
+                    thumbHtml +
+                    '<div class="aai-style-preview-info">' +
+                        '<strong class="aai-style-preview-name">' + escapeHtml(label) + '</strong>' +
+                        '<p class="aai-style-preview-desc">' + escapeHtml(data.desc) + '</p>' +
+                    '</div>' +
+                '</div>'
+            ).slideDown(200);
+        }
+
+        $select.on('change', function () {
+            renderPreview($(this).val());
+        });
+    }
+
+
+    /**
      * Obsługa color pickerów
      */
     function initColorPickers() {
@@ -406,6 +506,132 @@
                 $input.attr('type', 'password');
             }
         });
+    }
+
+    /**
+     * Prompt Templates — settings page (add/remove) + meta-box (select to fill)
+     */
+    function initPromptTemplates() {
+        // === Settings page: dynamic add/remove template rows ===
+        var $list = $('#aai-templates-list');
+        var $addBtn = $('#aai-add-template');
+
+        if ($addBtn.length) {
+            var templateIndex = $list.find('.aai-template-row').length;
+
+            $addBtn.on('click', function (e) {
+                e.preventDefault();
+                var html = '<div class="aai-template-row">' +
+                    '<input type="text" name="aai_options[prompt_templates][' + templateIndex + '][name]" ' +
+                    'value="" placeholder="Nazwa szablonu" class="regular-text aai-template-name" />' +
+                    '<textarea name="aai_options[prompt_templates][' + templateIndex + '][prompt]" ' +
+                    'rows="2" class="large-text aai-template-prompt" placeholder="Treść promptu..."></textarea>' +
+                    '<button type="button" class="button aai-remove-template" title="Usuń">&times;</button>' +
+                    '</div>';
+                $list.append(html);
+                templateIndex++;
+            });
+
+            $list.on('click', '.aai-remove-template', function (e) {
+                e.preventDefault();
+                $(this).closest('.aai-template-row').slideUp(200, function () { $(this).remove(); });
+            });
+        }
+
+        // === Meta-box: template select → fill prompt editor ===
+        var $select = $('#aai-template-select');
+        var $editor = $('#aai-prompt-editor');
+
+        if ($select.length && $editor.length) {
+            $select.on('change', function () {
+                var val = $(this).val();
+                if (val) {
+                    $editor.val(val).addClass('is-modified').trigger('input');
+                    // Reset dropdown
+                    $(this).val('');
+                }
+            });
+        }
+    }
+
+    /**
+     * Concept Chaining — generates 3 visual concepts, user picks one
+     */
+    function initConceptChaining() {
+        var $btn = $('#aai-generate-concepts');
+        if (!$btn.length) return;
+
+        $btn.on('click', function (e) {
+            e.preventDefault();
+            var postId = $('#aai-generate-btn').data('post-id');
+            if (!postId) return;
+
+            $btn.prop('disabled', true).text('Generowanie...');
+
+            $.ajax({
+                url: aaiData.ajaxUrl,
+                type: 'POST',
+                data: {
+                    action: 'aai_generate_concepts',
+                    post_id: postId,
+                    nonce: aaiData.nonce
+                },
+                timeout: 30000,
+                success: function (response) {
+                    if (response.success && response.data.concepts) {
+                        showConceptsPanel(response.data.concepts);
+                    } else {
+                        showMessage('error', response.data.message || 'Nie udało się wygenerować koncepcji.');
+                    }
+                },
+                error: function (xhr, status) {
+                    var msg = status === 'timeout' ? 'Przekroczono czas oczekiwania.' : 'Błąd połączenia.';
+                    showMessage('error', msg);
+                },
+                complete: function () {
+                    $btn.prop('disabled', false).text('Koncepcje');
+                }
+            });
+        });
+
+        function showConceptsPanel(concepts) {
+            // Remove existing panel if any
+            $('#aai-concepts-panel').remove();
+
+            var html = '<div id="aai-concepts-panel" class="aai-concepts-panel">';
+            html += '<div class="aai-concepts-header"><strong>Wybierz koncepcję:</strong></div>';
+
+            for (var i = 0; i < concepts.length; i++) {
+                html += '<div class="aai-concept-card" data-prompt="' + escapeAttr(concepts[i].prompt) + '">';
+                html += '<div class="aai-concept-title">' + escapeHtml(concepts[i].title) + '</div>';
+                html += '<div class="aai-concept-prompt">' + escapeHtml(concepts[i].prompt.substring(0, 120)) + '...</div>';
+                html += '<button type="button" class="button button-small aai-concept-use">Użyj</button>';
+                html += '</div>';
+            }
+
+            html += '<button type="button" class="button button-small aai-concepts-close">Zamknij</button>';
+            html += '</div>';
+
+            // Insert before prompt editor
+            var $promptSection = $('.aai-prompt-section');
+            $promptSection.before(html);
+
+            // Handle concept selection
+            $('#aai-concepts-panel').on('click', '.aai-concept-use', function () {
+                var prompt = $(this).closest('.aai-concept-card').data('prompt');
+                $('#aai-prompt-editor').val(prompt).addClass('is-modified').trigger('input');
+                $('#aai-concepts-panel').slideUp(200, function () { $(this).remove(); });
+                showMessage('info', 'Koncepcja wybrana. Możesz edytować prompt i generować.');
+            });
+
+            $('#aai-concepts-panel').on('click', '.aai-concepts-close', function () {
+                $('#aai-concepts-panel').slideUp(200, function () { $(this).remove(); });
+            });
+        }
+
+        function escapeAttr(text) {
+            return text.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#39;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        }
     }
 
     /**
@@ -871,6 +1097,502 @@
                     updateTokensDisplay(data.tokens);
                 }
             }
+        }
+    }
+
+    /**
+     * WooCommerce Product Shots meta box
+     */
+    function initProductShots() {
+        var $genBtn = $('#aai-ps-generate');
+        if (!$genBtn.length) return;
+
+        var $sourcePreview = $('#aai-ps-source-preview');
+        var $sourceId = $('#aai-ps-source-id');
+        var $scenes = $('#aai-ps-scenes');
+        var $results = $('#aai-ps-results');
+        var $message = $('#aai-ps-message');
+        var $progressWrap = $('#aai-ps-progress');
+        var $progressText = $('#aai-ps-progress-text');
+        var productId = $genBtn.data('product-id');
+        var frame;
+
+        // Upload source image
+        $('#aai-ps-upload-source').on('click', function (e) {
+            e.preventDefault();
+            if (frame) { frame.open(); return; }
+
+            frame = wp.media({
+                title: 'Wybierz zdjęcie produktu',
+                button: { text: 'Użyj tego zdjęcia' },
+                multiple: false
+            });
+
+            frame.on('select', function () {
+                var attachment = frame.state().get('selection').first().toJSON();
+                $sourceId.val(attachment.id);
+                $sourcePreview.html('<img src="' + attachment.sizes.thumbnail.url + '" alt="" />');
+            });
+
+            frame.open();
+        });
+
+        // Add scene row
+        $('#aai-ps-add-scene').on('click', function (e) {
+            e.preventDefault();
+            var count = $scenes.find('.aai-ps-scene-row').length;
+            if (count >= 5) { return; }
+
+            var $first = $scenes.find('.aai-ps-scene-row:first');
+            var $clone = $first.clone();
+            $clone.find('select').val('');
+            $clone.find('textarea').val('');
+            $clone.find('.aai-ps-scene-result').remove();
+            $scenes.append($clone);
+        });
+
+        // Preset select fills textarea
+        $scenes.on('change', '.aai-ps-preset', function () {
+            var val = $(this).val();
+            if (val) {
+                $(this).closest('.aai-ps-scene-row').find('.aai-ps-scene-prompt').val(val);
+            }
+        });
+
+        // Generate product shots
+        $genBtn.on('click', function (e) {
+            e.preventDefault();
+
+            var sourceImageId = $sourceId.val();
+            if (!sourceImageId) {
+                $message.removeClass('success').addClass('error').text('Wybierz zdjęcie produktu.').fadeIn();
+                return;
+            }
+
+            // Collect scene prompts
+            var scenePrompts = [];
+            $scenes.find('.aai-ps-scene-row').each(function () {
+                var prompt = $(this).find('.aai-ps-scene-prompt').val().trim();
+                if (prompt) {
+                    scenePrompts.push(prompt);
+                }
+            });
+
+            if (scenePrompts.length === 0) {
+                $message.removeClass('success').addClass('error').text('Dodaj przynajmniej jedną scenę.').fadeIn();
+                return;
+            }
+
+            $genBtn.prop('disabled', true);
+            $genBtn.find('.aai-btn-text').text('Generowanie...');
+            $genBtn.find('.aai-btn-spinner').show();
+            $message.hide();
+            $results.empty();
+            $progressWrap.show();
+
+            // Sequential generation per scene
+            var completed = 0;
+            function generateScene(index) {
+                if (index >= scenePrompts.length) {
+                    $progressWrap.hide();
+                    $genBtn.prop('disabled', false);
+                    $genBtn.find('.aai-btn-text').text('Generuj zdjęcia produktowe');
+                    $genBtn.find('.aai-btn-spinner').hide();
+                    $message.removeClass('error').addClass('success').text('Gotowe! Wygenerowano ' + completed + ' zdjęć.').fadeIn();
+                    return;
+                }
+
+                $progressText.text('Generowanie sceny ' + (index + 1) + ' z ' + scenePrompts.length + '...');
+
+                $.ajax({
+                    url: aaiData.ajaxUrl,
+                    type: 'POST',
+                    data: {
+                        action: 'aai_generate_product_shot',
+                        product_id: productId,
+                        source_image_id: sourceImageId,
+                        scene_prompt: scenePrompts[index],
+                        nonce: aaiData.nonce
+                    },
+                    timeout: 120000,
+                    success: function (response) {
+                        if (response.success) {
+                            completed++;
+                            var html = '<div class="aai-ps-result-card">';
+                            html += '<img src="' + response.data.image_url + '" alt="" />';
+                            html += '<div class="aai-ps-result-actions">';
+                            html += '<button type="button" class="button button-small aai-ps-add-gallery" ' +
+                                'data-attachment-id="' + response.data.attachment_id + '">' +
+                                'Dodaj do galerii</button>';
+                            html += '</div></div>';
+                            $results.append(html);
+                        } else {
+                            $results.append(
+                                '<div class="aai-ps-result-error">Scena ' + (index + 1) + ': ' +
+                                escapeHtml(response.data.message || 'Błąd') + '</div>'
+                            );
+                        }
+                    },
+                    error: function () {
+                        $results.append(
+                            '<div class="aai-ps-result-error">Scena ' + (index + 1) + ': Błąd połączenia</div>'
+                        );
+                    },
+                    complete: function () {
+                        generateScene(index + 1);
+                    }
+                });
+            }
+
+            generateScene(0);
+        });
+
+        // Add to product gallery
+        $results.on('click', '.aai-ps-add-gallery', function () {
+            var $btn = $(this);
+            var attachmentId = $btn.data('attachment-id');
+            $btn.prop('disabled', true).text('Dodawanie...');
+
+            $.ajax({
+                url: aaiData.ajaxUrl,
+                type: 'POST',
+                data: {
+                    action: 'aai_add_to_product_gallery',
+                    product_id: productId,
+                    attachment_id: attachmentId,
+                    nonce: aaiData.nonce
+                },
+                success: function (response) {
+                    if (response.success) {
+                        $btn.text('Dodano!').addClass('button-primary');
+                    } else {
+                        $btn.text('Błąd').prop('disabled', false);
+                    }
+                },
+                error: function () {
+                    $btn.text('Błąd').prop('disabled', false);
+                }
+            });
+        });
+    }
+
+    /**
+     * Generation Queue — find posts without images and generate
+     */
+    function initGenerationQueue() {
+        var $scanBtn = $('#aai-queue-scan');
+        if (!$scanBtn.length) return;
+
+        var $list = $('#aai-queue-list');
+        var $progress = $('#aai-queue-progress');
+        var $fill = $('#aai-queue-fill');
+        var $status = $('#aai-queue-status');
+        var $actions = $('#aai-queue-actions');
+        var $startBtn = $('#aai-queue-start');
+        var $stopBtn = $('#aai-queue-stop');
+        var $summary = $('#aai-queue-summary');
+        var $overwrite = $('#aai-queue-overwrite');
+
+        var postIds = [];
+        var isStopped = false;
+
+        // Scan for posts
+        $scanBtn.on('click', function (e) {
+            e.preventDefault();
+            $scanBtn.prop('disabled', true).text('Skanowanie...');
+            $list.empty();
+            $actions.hide();
+            $summary.hide();
+
+            $.ajax({
+                url: aaiData.ajaxUrl,
+                type: 'POST',
+                data: {
+                    action: 'aai_find_posts_without_images',
+                    overwrite: $overwrite.is(':checked') ? '1' : '0',
+                    nonce: aaiData.nonce
+                },
+                timeout: 30000,
+                success: function (response) {
+                    if (response.success && response.data.posts.length > 0) {
+                        postIds = [];
+                        var html = '';
+                        response.data.posts.forEach(function (p) {
+                            postIds.push(p.id);
+                            var thumbHtml = p.thumb_url
+                                ? '<img src="' + p.thumb_url + '" alt="" class="aai-queue-thumb" />'
+                                : '';
+                            html += '<div class="aai-bulk-item" id="aai-queue-item-' + p.id + '">';
+                            html += '<span class="aai-bulk-item-status">⏳</span>';
+                            html += '<span class="aai-bulk-item-title">' + escapeHtml(p.title) + '</span>';
+                            html += '<span class="aai-bulk-item-result"></span>';
+                            html += '<span class="aai-bulk-item-thumb">' + thumbHtml + '</span>';
+                            html += '</div>';
+                        });
+                        $list.html(html);
+                        $actions.show();
+                        $status.text('Znaleziono ' + postIds.length + ' postów.');
+                        $progress.show();
+                    } else if (response.success) {
+                        $list.html('<p style="padding:10px;color:#64748b;">Nie znaleziono postów bez obrazka.</p>');
+                    } else {
+                        $list.html('<p style="padding:10px;color:#dc2626;">' + escapeHtml(response.data.message || 'Błąd') + '</p>');
+                    }
+                },
+                error: function () {
+                    $list.html('<p style="padding:10px;color:#dc2626;">Błąd połączenia.</p>');
+                },
+                complete: function () {
+                    $scanBtn.prop('disabled', false).text('Znajdź posty bez obrazka');
+                }
+            });
+        });
+
+        // Start generation
+        $startBtn.on('click', function () {
+            if (!postIds.length) return;
+            isStopped = false;
+            $startBtn.hide();
+            $stopBtn.show();
+            $scanBtn.prop('disabled', true);
+            $overwrite.prop('disabled', true);
+
+            var stats = { success: 0, error: 0, skipped: 0 };
+            var overwrite = $overwrite.is(':checked') ? '1' : '0';
+            var startTime = Date.now();
+
+            processQueue(0, stats, overwrite, startTime);
+        });
+
+        // Stop generation
+        $stopBtn.on('click', function () {
+            isStopped = true;
+            $stopBtn.text('Zatrzymywanie...');
+        });
+
+        function processQueue(index, stats, overwrite, startTime) {
+            if (index >= postIds.length || isStopped) {
+                showQueueSummary(stats, postIds.length, isStopped);
+                return;
+            }
+
+            var postId = postIds[index];
+            var $item = $('#aai-queue-item-' + postId);
+            var pct = Math.round((index / postIds.length) * 100);
+
+            $fill.css('width', pct + '%');
+
+            // Estimate remaining time
+            var elapsed = (Date.now() - startTime) / 1000;
+            var avgPerItem = index > 0 ? elapsed / index : 0;
+            var remaining = avgPerItem * (postIds.length - index);
+            var etaText = remaining > 60
+                ? Math.round(remaining / 60) + ' min'
+                : Math.round(remaining) + ' sek';
+            $status.text('Generowanie ' + (index + 1) + ' z ' + postIds.length + '... (ETA: ~' + etaText + ')');
+
+            $item.addClass('is-processing');
+            $item.find('.aai-bulk-item-status').text('⚙️');
+
+            $.ajax({
+                url: aaiData.ajaxUrl,
+                type: 'POST',
+                data: {
+                    action: 'aai_bulk_generate',
+                    post_id: postId,
+                    overwrite: overwrite,
+                    nonce: aaiData.nonce
+                },
+                timeout: 180000,
+                success: function (response) {
+                    $item.removeClass('is-processing');
+                    if (response.success) {
+                        if (response.data.skipped) {
+                            stats.skipped++;
+                            $item.addClass('is-skipped');
+                            $item.find('.aai-bulk-item-status').text('⏭️');
+                            $item.find('.aai-bulk-item-result').text('Pominięto');
+                        } else {
+                            stats.success++;
+                            $item.addClass('is-success');
+                            $item.find('.aai-bulk-item-status').text('✅');
+                            $item.find('.aai-bulk-item-result').text('Wygenerowano!');
+                            if (response.data.image_url) {
+                                $item.find('.aai-bulk-item-thumb').html(
+                                    '<img src="' + response.data.image_url + '" alt="" />'
+                                );
+                            }
+                        }
+                    } else {
+                        stats.error++;
+                        $item.addClass('is-error');
+                        $item.find('.aai-bulk-item-status').text('❌');
+                        $item.find('.aai-bulk-item-result').text(response.data.message || 'Błąd');
+                    }
+                },
+                error: function (xhr, status) {
+                    stats.error++;
+                    $item.removeClass('is-processing').addClass('is-error');
+                    $item.find('.aai-bulk-item-status').text('❌');
+                    $item.find('.aai-bulk-item-result').text(status === 'timeout' ? 'Timeout' : 'Błąd');
+                },
+                complete: function () {
+                    processQueue(index + 1, stats, overwrite, startTime);
+                }
+            });
+        }
+
+        function showQueueSummary(stats, total, wasStopped) {
+            var pct = wasStopped
+                ? Math.round(((stats.success + stats.error + stats.skipped) / total) * 100)
+                : 100;
+            $fill.css('width', pct + '%');
+            $status.text(wasStopped ? 'Przerwano!' : 'Zakończono!');
+
+            var html = '<div class="aai-bulk-summary-grid">';
+            html += '<div class="aai-bulk-stat aai-bulk-stat-success"><strong>' + stats.success + '</strong><span>Wygenerowano</span></div>';
+            html += '<div class="aai-bulk-stat aai-bulk-stat-skipped"><strong>' + stats.skipped + '</strong><span>Pominięto</span></div>';
+            html += '<div class="aai-bulk-stat aai-bulk-stat-error"><strong>' + stats.error + '</strong><span>Błędy</span></div>';
+            html += '</div>';
+
+            if (wasStopped) {
+                html += '<p class="aai-bulk-cancelled">Proces został przerwany.</p>';
+            }
+
+            $summary.html(html).slideDown();
+            $stopBtn.hide();
+            $startBtn.hide();
+            $scanBtn.prop('disabled', false);
+            $overwrite.prop('disabled', false);
+        }
+    }
+
+    /**
+     * Standalone Image Generator (settings tab)
+     */
+    function initStandaloneGenerator() {
+        var $btn = $('#aai-gen-submit');
+        if (!$btn.length) return;
+
+        var $prompt = $('#aai-gen-prompt');
+        var $style = $('#aai-gen-style');
+        var $ratio = $('#aai-gen-ratio');
+        var $message = $('#aai-gen-message');
+        var $result = $('#aai-gen-result');
+        var $resultImg = $('#aai-gen-result-img');
+        var $download = $('#aai-gen-download');
+        var $mediaLink = $('#aai-gen-media-link');
+
+        $btn.on('click', function (e) {
+            e.preventDefault();
+
+            var prompt = $prompt.val().trim();
+            if (!prompt) {
+                $message.removeClass('success error').addClass('error').text('Wpisz prompt.').fadeIn();
+                return;
+            }
+
+            $btn.prop('disabled', true);
+            $btn.find('.aai-btn-text').text('Generowanie...');
+            $btn.find('.aai-btn-spinner').show();
+            $message.hide();
+            $result.hide();
+
+            $.ajax({
+                url: aaiData.ajaxUrl,
+                type: 'POST',
+                data: {
+                    action: 'aai_generate_standalone',
+                    prompt: prompt,
+                    style: $style.val(),
+                    aspect_ratio: $ratio.val(),
+                    nonce: aaiData.nonce
+                },
+                timeout: 120000,
+                success: function (response) {
+                    if (response.success) {
+                        $message.removeClass('error').addClass('success').text(response.data.message).fadeIn();
+                        $resultImg.attr('src', response.data.image_url + '?t=' + Date.now());
+                        $download.attr('href', response.data.image_url);
+                        $mediaLink.attr('href', response.data.edit_url);
+                        $result.fadeIn();
+                    } else {
+                        $message.removeClass('success').addClass('error').text(response.data.message || 'Błąd').fadeIn();
+                    }
+                },
+                error: function (xhr, status) {
+                    var msg = status === 'timeout' ? 'Przekroczono czas oczekiwania.' : 'Błąd połączenia.';
+                    $message.removeClass('success').addClass('error').text(msg).fadeIn();
+                },
+                complete: function () {
+                    $btn.prop('disabled', false);
+                    $btn.find('.aai-btn-text').text('Generuj obrazek');
+                    $btn.find('.aai-btn-spinner').hide();
+                }
+            });
+        });
+
+        // "Generate another" resets result view
+        $('#aai-gen-another').on('click', function () {
+            $result.fadeOut(200);
+            $prompt.focus();
+        });
+    }
+
+    /**
+     * Watermark logo upload in settings
+     */
+    function initWatermarkUpload() {
+        var $uploadBtn = $('#aai-upload-watermark');
+        var $removeBtn = $('#aai-remove-watermark');
+        var $preview = $('#aai-watermark-preview');
+        var $input = $('#aai_watermark_logo');
+        var frame;
+
+        if (!$uploadBtn.length) return;
+
+        $uploadBtn.on('click', function (e) {
+            e.preventDefault();
+
+            if (frame) {
+                frame.open();
+                return;
+            }
+
+            frame = wp.media({
+                title: 'Wybierz logo / watermark',
+                button: { text: 'Użyj tego obrazka' },
+                multiple: false
+            });
+
+            frame.on('select', function () {
+                var attachment = frame.state().get('selection').first().toJSON();
+                $input.val(attachment.url);
+                $preview.html('<img src="' + attachment.url + '" alt="Watermark" />');
+
+                // Show remove button if not present
+                if (!$removeBtn.length) {
+                    $uploadBtn.after(' <button type="button" id="aai-remove-watermark" class="button">Usuń</button>');
+                    $removeBtn = $('#aai-remove-watermark');
+                    bindRemove();
+                }
+            });
+
+            frame.open();
+        });
+
+        function bindRemove() {
+            $removeBtn.on('click', function (e) {
+                e.preventDefault();
+                $input.val('');
+                $preview.empty();
+                $(this).remove();
+                $removeBtn = $();
+            });
+        }
+
+        if ($removeBtn.length) {
+            bindRemove();
         }
     }
 

@@ -230,6 +230,12 @@ function aai_save_remote_image( $image_data, $post_id = 0, $metadata = array() )
         }
     }
 
+    // Apply watermark if enabled (after WebP conversion, before ALT generation)
+    $current_file = get_attached_file( $attach_id );
+    if ( $current_file && file_exists( $current_file ) ) {
+        aai_apply_watermark( $current_file );
+    }
+
     // Generowanie inteligentnego opisu ALT (jeśli włączone i brak w metadata)
     // Sprawdzamy opcję w ustawieniach
     $auto_alt_enabled = aai_get_option( 'auto_generate_alt', false );
@@ -423,6 +429,155 @@ function aai_convert_to_webp( $file_path, $quality = 85 ) {
     }
 
     return false;
+}
+
+/**
+ * Applies watermark/logo overlay to an image file using GD
+ *
+ * @param string $file_path Absolute path to the image file
+ * @return bool True if watermark was applied, false otherwise
+ */
+function aai_apply_watermark( $file_path ) {
+    $enabled = aai_get_option( 'watermark_enabled', false );
+    if ( ! $enabled ) {
+        return false;
+    }
+
+    $logo_url = aai_get_option( 'watermark_logo', '' );
+    if ( empty( $logo_url ) ) {
+        return false;
+    }
+
+    if ( ! function_exists( 'imagecreatefrompng' ) ) {
+        return false;
+    }
+
+    if ( ! file_exists( $file_path ) ) {
+        return false;
+    }
+
+    // Load the main image
+    $mime = wp_check_filetype( $file_path )['type'];
+    $main_image = null;
+
+    if ( $mime === 'image/png' ) {
+        $main_image = @imagecreatefrompng( $file_path );
+    } elseif ( $mime === 'image/jpeg' ) {
+        $main_image = @imagecreatefromjpeg( $file_path );
+    } elseif ( $mime === 'image/webp' && function_exists( 'imagecreatefromwebp' ) ) {
+        $main_image = @imagecreatefromwebp( $file_path );
+    }
+
+    if ( ! $main_image ) {
+        return false;
+    }
+
+    // Load the logo — convert URL to local path if possible
+    $logo_path = '';
+    $upload_dir = wp_upload_dir();
+    if ( strpos( $logo_url, $upload_dir['baseurl'] ) === 0 ) {
+        $logo_path = str_replace( $upload_dir['baseurl'], $upload_dir['basedir'], $logo_url );
+    }
+
+    if ( empty( $logo_path ) || ! file_exists( $logo_path ) ) {
+        // Try fetching remotely as fallback
+        $logo_content = wp_remote_retrieve_body( wp_remote_get( $logo_url, array( 'timeout' => 10 ) ) );
+        if ( empty( $logo_content ) ) {
+            imagedestroy( $main_image );
+            return false;
+        }
+        $logo_image = @imagecreatefromstring( $logo_content );
+    } else {
+        $logo_content = file_get_contents( $logo_path );
+        $logo_image = @imagecreatefromstring( $logo_content );
+    }
+
+    if ( ! $logo_image ) {
+        imagedestroy( $main_image );
+        return false;
+    }
+
+    // Get dimensions
+    $main_w = imagesx( $main_image );
+    $main_h = imagesy( $main_image );
+    $logo_w = imagesx( $logo_image );
+    $logo_h = imagesy( $logo_image );
+
+    // Calculate logo size based on percentage setting
+    $size_pct = (int) aai_get_option( 'watermark_size', '10' );
+    $target_w = (int) ( $main_w * $size_pct / 100 );
+    $target_h = (int) ( $logo_h * ( $target_w / $logo_w ) );
+
+    // Resize logo
+    $resized_logo = imagecreatetruecolor( $target_w, $target_h );
+    imagealphablending( $resized_logo, false );
+    imagesavealpha( $resized_logo, true );
+    $transparent = imagecolorallocatealpha( $resized_logo, 0, 0, 0, 127 );
+    imagefill( $resized_logo, 0, 0, $transparent );
+    imagecopyresampled( $resized_logo, $logo_image, 0, 0, 0, 0, $target_w, $target_h, $logo_w, $logo_h );
+    imagedestroy( $logo_image );
+
+    // Calculate position
+    $padding  = 20;
+    $position = aai_get_option( 'watermark_position', 'bottom-right' );
+
+    switch ( $position ) {
+        case 'top-left':
+            $dest_x = $padding;
+            $dest_y = $padding;
+            break;
+        case 'top-right':
+            $dest_x = $main_w - $target_w - $padding;
+            $dest_y = $padding;
+            break;
+        case 'bottom-left':
+            $dest_x = $padding;
+            $dest_y = $main_h - $target_h - $padding;
+            break;
+        default: // bottom-right
+            $dest_x = $main_w - $target_w - $padding;
+            $dest_y = $main_h - $target_h - $padding;
+            break;
+    }
+
+    // Apply opacity via imagecopymerge
+    $opacity = (int) aai_get_option( 'watermark_opacity', '50' );
+
+    // For images with alpha, we need a temp canvas approach
+    imagealphablending( $main_image, true );
+    imagesavealpha( $main_image, true );
+
+    // Create a temporary image to blend with opacity
+    $temp = imagecreatetruecolor( $target_w, $target_h );
+    imagealphablending( $temp, false );
+    imagesavealpha( $temp, true );
+    imagefill( $temp, 0, 0, $transparent );
+
+    // Copy main area to temp
+    imagecopy( $temp, $main_image, 0, 0, $dest_x, $dest_y, $target_w, $target_h );
+
+    // Merge logo onto temp with opacity
+    imagecopymerge( $temp, $resized_logo, 0, 0, 0, 0, $target_w, $target_h, $opacity );
+
+    // Copy blended result back to main image
+    imagecopy( $main_image, $temp, $dest_x, $dest_y, 0, 0, $target_w, $target_h );
+
+    imagedestroy( $temp );
+    imagedestroy( $resized_logo );
+
+    // Save back to file
+    $saved = false;
+    if ( $mime === 'image/png' ) {
+        $saved = imagepng( $main_image, $file_path );
+    } elseif ( $mime === 'image/jpeg' ) {
+        $saved = imagejpeg( $main_image, $file_path, 92 );
+    } elseif ( $mime === 'image/webp' && function_exists( 'imagewebp' ) ) {
+        $saved = imagewebp( $main_image, $file_path, 85 );
+    }
+
+    imagedestroy( $main_image );
+
+    return $saved;
 }
 
 /**

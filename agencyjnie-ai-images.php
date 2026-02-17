@@ -31,11 +31,16 @@ function aai_load_includes() {
     require_once AAI_PLUGIN_DIR . 'includes/prompt-builder.php';
     require_once AAI_PLUGIN_DIR . 'includes/meta-box.php';
     require_once AAI_PLUGIN_DIR . 'includes/bulk-actions.php';
-    require_once AAI_PLUGIN_DIR . 'includes/github-updater.php';
     require_once AAI_PLUGIN_DIR . 'includes/stats.php';
     require_once AAI_PLUGIN_DIR . 'includes/category-styles.php';
     require_once AAI_PLUGIN_DIR . 'includes/social-images.php';
     require_once AAI_PLUGIN_DIR . 'includes/upscale.php';
+    require_once AAI_PLUGIN_DIR . 'includes/generation-queue.php';
+
+    // WooCommerce Product Shots — only load when WooCommerce is active
+    if ( class_exists( 'WooCommerce' ) ) {
+        require_once AAI_PLUGIN_DIR . 'includes/woo-product-shots.php';
+    }
 }
 add_action( 'plugins_loaded', 'aai_load_includes' );
 
@@ -44,7 +49,7 @@ add_action( 'plugins_loaded', 'aai_load_includes' );
  */
 function aai_admin_enqueue_scripts( $hook ) {
     // Ładuj na stronach edycji postów, ustawień wtyczki i liście wpisów (bulk actions)
-    $allowed_hooks = array( 'post.php', 'post-new.php', 'settings_page_agencyjnie-ai-images', 'edit.php', 'settings_page_aai-stats', 'settings_page_aai-category-styles' );
+    $allowed_hooks = array( 'post.php', 'post-new.php', 'settings_page_agencyjnie-ai-images', 'edit.php' );
     
     if ( ! in_array( $hook, $allowed_hooks, true ) ) {
         return;
@@ -71,6 +76,7 @@ function aai_admin_enqueue_scripts( $hook ) {
     $localize_data = array(
         'ajaxUrl'  => admin_url( 'admin-ajax.php' ),
         'nonce'    => wp_create_nonce( 'aai_generate_image' ),
+        'aiModel'  => aai_get_option( 'ai_model', 'gemini' ),
         'strings'  => array(
             'generating'   => __( 'Generowanie obrazka...', 'agencyjnie-ai-images' ),
             'success'      => __( 'Obrazek wygenerowany pomyślnie!', 'agencyjnie-ai-images' ),
@@ -428,6 +434,30 @@ function aai_ajax_analyze_article() {
 add_action( 'wp_ajax_aai_analyze_article', 'aai_ajax_analyze_article' );
 
 /**
+ * AJAX handler — generowanie 3 koncepcji wizualnych z artykułu
+ */
+function aai_ajax_generate_concepts() {
+    if ( ! check_ajax_referer( 'aai_generate_image', 'nonce', false ) ) {
+        wp_send_json_error( array( 'message' => 'Błąd bezpieczeństwa.' ) );
+    }
+
+    $post_id = isset( $_POST['post_id'] ) ? absint( $_POST['post_id'] ) : 0;
+
+    if ( ! $post_id || ! current_user_can( 'edit_post', $post_id ) ) {
+        wp_send_json_error( array( 'message' => 'Brak uprawnień.' ) );
+    }
+
+    $result = aai_generate_visual_concepts( $post_id );
+
+    if ( is_wp_error( $result ) ) {
+        wp_send_json_error( array( 'message' => $result->get_error_message() ) );
+    }
+
+    wp_send_json_success( array( 'concepts' => $result ) );
+}
+add_action( 'wp_ajax_aai_generate_concepts', 'aai_ajax_generate_concepts' );
+
+/**
  * AJAX handler — upscale (powiększenie) obrazka
  */
 function aai_ajax_upscale_image() {
@@ -527,6 +557,121 @@ function aai_ajax_edit_image() {
     ) );
 }
 add_action( 'wp_ajax_aai_edit_image', 'aai_ajax_edit_image' );
+
+/**
+ * AJAX handler — standalone image generator (no post context)
+ */
+function aai_ajax_generate_standalone() {
+    if ( ! check_ajax_referer( 'aai_generate_image', 'nonce', false ) ) {
+        wp_send_json_error( array( 'message' => 'Błąd bezpieczeństwa.' ) );
+    }
+
+    if ( ! current_user_can( 'upload_files' ) ) {
+        wp_send_json_error( array( 'message' => 'Brak uprawnień.' ) );
+    }
+
+    $raw_prompt   = isset( $_POST['prompt'] ) ? sanitize_textarea_field( $_POST['prompt'] ) : '';
+    $style_key    = isset( $_POST['style'] ) ? sanitize_text_field( $_POST['style'] ) : '';
+    $aspect_ratio = isset( $_POST['aspect_ratio'] ) ? sanitize_text_field( $_POST['aspect_ratio'] ) : '';
+
+    if ( empty( $raw_prompt ) ) {
+        wp_send_json_error( array( 'message' => 'Prompt nie może być pusty.' ) );
+    }
+
+    // Build final prompt with style + colors + negative prompt
+    $parts = array();
+    $parts[] = 'Create a visually striking image based on this description:';
+    $parts[] = $raw_prompt;
+
+    if ( ! empty( $style_key ) ) {
+        $style_desc = aai_get_style_description_by_key( $style_key );
+        if ( $style_desc ) {
+            $parts[] = sprintf( 'Art style: %s', $style_desc );
+        }
+    }
+
+    $base_prompt = aai_get_option( 'base_prompt', '' );
+    if ( ! empty( $base_prompt ) ) {
+        $parts[] = sprintf( 'Style guidelines: %s', $base_prompt );
+    }
+
+    $colors = aai_get_colors_description();
+    if ( ! empty( $colors ) ) {
+        $parts[] = sprintf( 'Color palette: %s', $colors );
+    }
+
+    $negative_prompt = aai_get_option( 'negative_prompt', '' );
+    if ( ! empty( $negative_prompt ) ) {
+        $parts[] = sprintf( 'IMPORTANT - DO NOT INCLUDE: %s', $negative_prompt );
+    }
+
+    $image_language = aai_get_option( 'image_language', 'pl' );
+    $parts[] = aai_get_language_instruction( $image_language );
+    $parts[] = 'The image should be professional and high-quality.';
+
+    $final_prompt = implode( "\n\n", $parts );
+
+    // Validate aspect ratio
+    $allowed_ratios = array( '16:9', '4:3', '1:1', '3:4', '9:16' );
+    $effective_ratio = ( ! empty( $aspect_ratio ) && in_array( $aspect_ratio, $allowed_ratios, true ) ) ? $aspect_ratio : null;
+
+    $result = aai_generate_image( $final_prompt, $effective_ratio );
+
+    if ( is_wp_error( $result ) ) {
+        wp_send_json_error( array( 'message' => $result->get_error_message() ) );
+    }
+
+    // Save to media library unattached ($post_id = 0)
+    $title = wp_trim_words( $raw_prompt, 10, '' );
+    $attachment_id = aai_save_remote_image(
+        $result['image_data'],
+        0,
+        array(
+            'title'   => $title,
+            'alt'     => $title,
+            'source'  => 'ai_generated',
+            'context' => 'standalone',
+        )
+    );
+
+    if ( is_wp_error( $attachment_id ) ) {
+        wp_send_json_error( array( 'message' => $attachment_id->get_error_message() ) );
+    }
+
+    update_post_meta( $attachment_id, '_aai_standalone', true );
+    update_post_meta( $attachment_id, '_aai_original_prompt', $raw_prompt );
+
+    // Log stats
+    if ( function_exists( 'aai_log_generation' ) ) {
+        $ai_model = aai_get_option( 'ai_model', 'gemini' );
+        $tokens = isset( $result['tokens'] ) ? $result['tokens'] : array();
+        aai_log_generation( 0, $ai_model, $tokens, 'success', 'standalone' );
+    }
+
+    // Save to user-specific history transient (last 5, 24h)
+    $user_id = get_current_user_id();
+    $history = get_transient( 'aai_standalone_history_' . $user_id );
+    if ( ! is_array( $history ) ) {
+        $history = array();
+    }
+    array_unshift( $history, array(
+        'attachment_id' => $attachment_id,
+        'date'          => current_time( 'mysql' ),
+    ) );
+    $history = array_slice( $history, 0, 5 );
+    set_transient( 'aai_standalone_history_' . $user_id, $history, DAY_IN_SECONDS );
+
+    $image_url = wp_get_attachment_url( $attachment_id );
+    $edit_url  = admin_url( 'upload.php?item=' . $attachment_id );
+
+    wp_send_json_success( array(
+        'message'       => 'Obrazek wygenerowany!',
+        'attachment_id' => $attachment_id,
+        'image_url'     => $image_url,
+        'edit_url'      => $edit_url,
+    ) );
+}
+add_action( 'wp_ajax_aai_generate_standalone', 'aai_ajax_generate_standalone' );
 
 /**
  * Auto-generowanie obrazka przy publikacji posta

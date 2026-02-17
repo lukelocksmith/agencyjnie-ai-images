@@ -172,20 +172,8 @@ function aai_get_stats( $period = 'all' ) {
     );
 }
 
-/**
- * Rejestracja strony statystyk
- */
-function aai_register_stats_page() {
-    add_submenu_page(
-        'options-general.php',
-        __( 'AI Images - Statystyki', 'agencyjnie-ai-images' ),
-        __( 'AI Images Stats', 'agencyjnie-ai-images' ),
-        'manage_options',
-        'aai-stats',
-        'aai_render_stats_page'
-    );
-}
-add_action( 'admin_menu', 'aai_register_stats_page' );
+// Stats page is now rendered as a tab in the unified settings page.
+// See settings-page.php → aai_render_settings_page().
 
 /**
  * Renderowanie strony statystyk
@@ -214,9 +202,7 @@ function aai_render_stats_page() {
         }
     }
     ?>
-    <div class="wrap aai-stats-wrap">
-        <h1><?php esc_html_e( 'AI Images - Statystyki', 'agencyjnie-ai-images' ); ?></h1>
-
+    <div class="aai-stats-wrap">
         <!-- Period tabs -->
         <div class="aai-stats-tabs">
             <?php
@@ -228,7 +214,7 @@ function aai_render_stats_page() {
             );
             foreach ( $periods as $key => $label ) :
                 $active = $period === $key ? ' aai-tab-active' : '';
-                $url = admin_url( 'options-general.php?page=aai-stats&period=' . $key );
+                $url = admin_url( 'options-general.php?page=agencyjnie-ai-images&tab=stats&period=' . $key );
             ?>
                 <a href="<?php echo esc_url( $url ); ?>" class="aai-stats-tab<?php echo esc_attr( $active ); ?>">
                     <?php echo esc_html( $label ); ?>
@@ -302,6 +288,6 @@ function aai_render_stats_page() {
             </div>
         </div>
         <?php endif; ?>
-    </div>
+    </div><!-- .aai-stats-wrap -->
     <?php
 }

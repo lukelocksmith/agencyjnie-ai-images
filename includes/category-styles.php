@@ -28,20 +28,8 @@ function aai_get_category_style( $post_id ) {
     return null;
 }
 
-/**
- * Register admin submenu page
- */
-function aai_register_category_styles_page() {
-    add_submenu_page(
-        'options-general.php',
-        __( 'AI Images - Style kategorii', 'agencyjnie-ai-images' ),
-        __( 'AI Images Kategorie', 'agencyjnie-ai-images' ),
-        'manage_options',
-        'aai-category-styles',
-        'aai_render_category_styles_page'
-    );
-}
-add_action( 'admin_menu', 'aai_register_category_styles_page' );
+// Category styles page is now rendered as a tab in the unified settings page.
+// See settings-page.php → aai_render_settings_page().
 
 /**
  * Handle save action
@@ -91,11 +79,10 @@ function aai_render_category_styles_page() {
 
     settings_errors( 'aai_category_styles' );
     ?>
-    <div class="wrap aai-category-styles-wrap">
-        <h1><?php esc_html_e( 'AI Images - Style per kategoria', 'agencyjnie-ai-images' ); ?></h1>
+    <div class="aai-category-styles-wrap">
         <p class="description"><?php esc_html_e( 'Przypisz styl artystyczny do każdej kategorii. Posty z danej kategorii będą automatycznie używać przypisanego stylu zamiast globalnego.', 'agencyjnie-ai-images' ); ?></p>
 
-        <form method="post">
+        <form method="post" action="<?php echo esc_url( admin_url( 'options-general.php?page=agencyjnie-ai-images&tab=categories' ) ); ?>">
             <?php wp_nonce_field( 'aai_save_category_styles', 'aai_category_styles_nonce' ); ?>
 
             <table class="widefat striped aai-category-styles-table">

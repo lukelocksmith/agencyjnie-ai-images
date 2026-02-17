@@ -601,3 +601,128 @@ function aai_analyze_article_for_prompt( $post_id ) {
 
     return new WP_Error( 'no_result', __( 'Nie udało się przeanalizować artykułu.', 'agencyjnie-ai-images' ) );
 }
+
+/**
+ * Generates 3 visual concepts for an article's featured image
+ *
+ * @param int $post_id Post ID to analyze
+ * @return array|WP_Error Array of 3 concepts [['title' => ..., 'prompt' => ...], ...] or error
+ */
+function aai_generate_visual_concepts( $post_id ) {
+    $api_key = aai_get_secure_option( 'api_key' );
+
+    if ( empty( $api_key ) ) {
+        return new WP_Error( 'no_api_key', __( 'Brak klucza API Gemini.', 'agencyjnie-ai-images' ) );
+    }
+
+    $post = get_post( $post_id );
+    if ( ! $post ) {
+        return new WP_Error( 'no_post', __( 'Post nie istnieje.', 'agencyjnie-ai-images' ) );
+    }
+
+    $content = $post->post_content;
+    $content = strip_shortcodes( $content );
+    $content = preg_replace( '/<!--.*?-->/', '', $content );
+    $content = wp_strip_all_tags( $content );
+    $content = preg_replace( '/\s+/', ' ', $content );
+    $content = trim( $content );
+
+    if ( mb_strlen( $content ) > 3000 ) {
+        $content = mb_substr( $content, 0, 3000 ) . '...';
+    }
+
+    $title = $post->post_title;
+    $style = aai_get_style_description();
+    $image_language = aai_get_option( 'image_language', 'pl' );
+    $language_instruction = aai_get_language_instruction( $image_language );
+
+    $system_instruction = 'You are an expert visual director and AI image prompt engineer. '
+        . 'Your task is to analyze a blog article and propose exactly 3 different visual concepts for a featured image. '
+        . 'Each concept should be distinct in composition, mood, or subject matter.';
+
+    $user_prompt  = "Analyze this article and propose 3 different visual concepts for its featured image.\n\n";
+    $user_prompt .= "ARTICLE TITLE: \"{$title}\"\n\n";
+    $user_prompt .= "ARTICLE CONTENT:\n{$content}\n\n";
+
+    if ( ! empty( $style ) ) {
+        $user_prompt .= "ART STYLE TO USE: {$style}\n\n";
+    }
+
+    $user_prompt .= "REQUIREMENTS:\n";
+    $user_prompt .= "- Propose exactly 3 distinct visual concepts\n";
+    $user_prompt .= "- For each concept provide: a short title (max 5 words) and a detailed image generation prompt (in English, max 400 chars)\n";
+    $user_prompt .= "- {$language_instruction}\n";
+    $user_prompt .= "- Output ONLY valid JSON array, no markdown, no explanation\n";
+    $user_prompt .= "- Format: [{\"title\": \"...\", \"prompt\": \"...\"}, {\"title\": \"...\", \"prompt\": \"...\"}, {\"title\": \"...\", \"prompt\": \"...\"}]\n";
+
+    $api_url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent';
+
+    $request_body = array(
+        'systemInstruction' => array(
+            'parts' => array(
+                array( 'text' => $system_instruction ),
+            ),
+        ),
+        'contents' => array(
+            array(
+                'parts' => array(
+                    array( 'text' => $user_prompt ),
+                ),
+            ),
+        ),
+        'generationConfig' => array(
+            'maxOutputTokens' => 600,
+            'temperature'     => 0.8,
+        ),
+    );
+
+    $response = wp_remote_post( $api_url, array(
+        'timeout' => 30,
+        'headers' => array(
+            'Content-Type'   => 'application/json',
+            'x-goog-api-key' => $api_key,
+        ),
+        'body' => wp_json_encode( $request_body ),
+    ) );
+
+    if ( is_wp_error( $response ) ) {
+        return $response;
+    }
+
+    $response_code = wp_remote_retrieve_response_code( $response );
+    $body = json_decode( wp_remote_retrieve_body( $response ), true );
+
+    if ( $response_code !== 200 ) {
+        $error_msg = isset( $body['error']['message'] ) ? $body['error']['message'] : 'Błąd API';
+        return new WP_Error( 'api_error', $error_msg );
+    }
+
+    if ( ! isset( $body['candidates'][0]['content']['parts'][0]['text'] ) ) {
+        return new WP_Error( 'no_result', __( 'Nie udało się wygenerować koncepcji.', 'agencyjnie-ai-images' ) );
+    }
+
+    $raw_text = $body['candidates'][0]['content']['parts'][0]['text'];
+    $json_str = aai_clean_json_string( $raw_text );
+    $concepts = json_decode( $json_str, true );
+
+    if ( ! is_array( $concepts ) || count( $concepts ) < 1 ) {
+        return new WP_Error( 'parse_error', __( 'Nie udało się sparsować koncepcji z odpowiedzi AI.', 'agencyjnie-ai-images' ) );
+    }
+
+    // Sanitize and limit to 3
+    $result = array();
+    foreach ( array_slice( $concepts, 0, 3 ) as $concept ) {
+        if ( isset( $concept['title'] ) && isset( $concept['prompt'] ) ) {
+            $result[] = array(
+                'title'  => sanitize_text_field( $concept['title'] ),
+                'prompt' => sanitize_textarea_field( $concept['prompt'] ),
+            );
+        }
+    }
+
+    if ( empty( $result ) ) {
+        return new WP_Error( 'empty_concepts', __( 'AI nie zwróciło poprawnych koncepcji.', 'agencyjnie-ai-images' ) );
+    }
+
+    return $result;
+}
