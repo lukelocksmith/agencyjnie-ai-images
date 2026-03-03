@@ -730,15 +730,16 @@ div.aai-style-preview-thumb {
 
 .aai-prompt-header {
     display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 8px;
+    flex-direction: column;
+    gap: 4px;
+    margin-bottom: 6px;
 }
 
 /* Prompt buttons */
 .aai-prompt-buttons {
     display: flex;
     gap: 4px;
+    flex-wrap: wrap;
 }
 
 #aai-analyze-article {
