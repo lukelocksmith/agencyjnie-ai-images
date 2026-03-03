@@ -636,7 +636,7 @@ function aai_render_image_language_field() {
         'sk'           => 'Slovenčina',
         'uk'           => 'Українська',
         'ru'           => 'Русский',
-        'numbers_only' => __( 'Tylko liczby (bez tekstu)', 'agencyjnie-ai-images' ),
+        'numbers_only' => __( 'Bez tekstu (liczby dopuszczalne)', 'agencyjnie-ai-images' ),
         'none'         => __( 'Bez tekstu i liczb', 'agencyjnie-ai-images' ),
     );
     ?>
@@ -650,7 +650,7 @@ function aai_render_image_language_field() {
     <p class="description">
         <?php esc_html_e( 'Jeśli AI wygeneruje tekst na obrazku, będzie w wybranym języku.', 'agencyjnie-ai-images' ); ?>
         <br>
-        <?php esc_html_e( '"Tylko liczby" - pozwala na cyfry, procenty, statystyki, ale bez słów (idealne dla infografik).', 'agencyjnie-ai-images' ); ?>
+        <?php esc_html_e( '"Bez tekstu" - zabrania słów i liter. Liczby mogą się pojawić jeśli naturalnie pasują do koncepcji (np. infografika), ale nie są wymuszane.', 'agencyjnie-ai-images' ); ?>
         <br>
         <?php esc_html_e( '"Bez tekstu i liczb" - obrazek czysto wizualny, bez jakichkolwiek napisów.', 'agencyjnie-ai-images' ); ?>
     </p>

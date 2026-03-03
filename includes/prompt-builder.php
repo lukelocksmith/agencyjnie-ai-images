@@ -117,7 +117,7 @@ function aai_get_system_instruction( $post_id ) {
     if ( $image_language === 'none' ) {
         $instructions[] = "CRITICAL RULE: The output image must NOT contain any text, words, letters, numbers, or glyphs. It must be a purely visual representation. If the prompt implies text (like a title), visualize the CONCEPT, do not write the words.";
     } elseif ( $image_language === 'numbers_only' ) {
-        $instructions[] = "CRITICAL RULE: The output image may contain numbers and charts, but must NOT contain any words, letters, or written language.";
+        $instructions[] = "CRITICAL RULE: The output image must NOT contain any words, letters, or written text. Numbers and simple data visualizations are acceptable if they naturally fit the concept, but do not force them — a purely visual image is perfectly fine.";
     }
     
     return implode( " ", $instructions );
@@ -151,9 +151,9 @@ function aai_get_language_instruction( $language_code ) {
         return "IMPORTANT FINAL INSTRUCTION: Do NOT include any text, words, letters, numbers, labels, captions, watermarks, or any written content in the image. The image must be purely visual without any textual elements. Visuals ONLY.";
     }
     
-    // Tylko liczby - pozwala na cyfry, procenty, statystyki, ale bez słów
+    // Bez tekstu — liczby dopuszczalne jeśli pasują, ale nie wymuszone
     if ( $language_code === 'numbers_only' ) {
-        return "IMPORTANT FINAL INSTRUCTION: You MAY include numbers, digits, percentages (%), statistics, mathematical symbols, charts, and graphs in the image. However, do NOT include any words, letters, text labels, or written language. Only numerical data and mathematical notation are allowed.";
+        return "IMPORTANT FINAL INSTRUCTION: Do NOT include any words, letters, text labels, or written language in the image. Numbers are acceptable only if they naturally fit the visual concept (e.g. infographics, charts), but do not force them. A purely visual image without any numbers is perfectly fine.";
     }
     
     $language_name = isset( $language_names[ $language_code ] ) ? $language_names[ $language_code ] : 'English';

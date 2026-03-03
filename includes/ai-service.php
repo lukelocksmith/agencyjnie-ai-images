@@ -181,47 +181,76 @@ function aai_generate_image_gemini( $prompt, $aspect_ratio = null, $gemini_model
         );
     }
     
-    // Wykonanie requestu (klucz API w headerze zamiast query string)
-    $response = wp_remote_post( $api_url, array(
-        'timeout'     => 120, // Generowanie obrazka może trwać dłużej
+    // Wykonanie requestu z retry dla rate limiting (429, 503)
+    $max_retries  = 3;
+    $retry_delays = array( 10, 25, 60 ); // Sekundy między próbami
+
+    $request_args = array(
+        'timeout'     => 120,
         'headers'     => array(
             'Content-Type'   => 'application/json',
             'x-goog-api-key' => $api_key,
         ),
         'body'        => wp_json_encode( $request_body ),
-    ) );
-    
-    // Sprawdzenie błędów połączenia
-    if ( is_wp_error( $response ) ) {
-        return new WP_Error( 
-            'connection_error', 
-            sprintf( 
-                __( 'Błąd połączenia z API: %s', 'agencyjnie-ai-images' ), 
-                $response->get_error_message() 
-            ) 
-        );
-    }
-    
-    $response_code = wp_remote_retrieve_response_code( $response );
-    $response_body = wp_remote_retrieve_body( $response );
-    $data = json_decode( $response_body, true );
-    
-    // Sprawdzenie kodu odpowiedzi HTTP
-    if ( $response_code !== 200 ) {
+    );
+
+    for ( $attempt = 0; $attempt <= $max_retries; $attempt++ ) {
+        $response = wp_remote_post( $api_url, $request_args );
+
+        // Sprawdzenie błędów połączenia
+        if ( is_wp_error( $response ) ) {
+            return new WP_Error(
+                'connection_error',
+                sprintf(
+                    __( 'Błąd połączenia z API: %s', 'agencyjnie-ai-images' ),
+                    $response->get_error_message()
+                )
+            );
+        }
+
+        $response_code = wp_remote_retrieve_response_code( $response );
+        $response_body = wp_remote_retrieve_body( $response );
+        $data = json_decode( $response_body, true );
+
+        // Sukces — wychodzimy z pętli
+        if ( $response_code === 200 ) {
+            break;
+        }
+
+        // Rate limit (429) lub Resource Exhausted (503) — retry po opóźnieniu
+        if ( in_array( $response_code, array( 429, 503 ), true ) && $attempt < $max_retries ) {
+            $delay = $retry_delays[ $attempt ];
+            // Sprawdź nagłówek Retry-After jeśli jest
+            $retry_after = wp_remote_retrieve_header( $response, 'retry-after' );
+            if ( $retry_after && is_numeric( $retry_after ) && (int) $retry_after <= 120 ) {
+                $delay = (int) $retry_after;
+            }
+            sleep( $delay );
+            continue;
+        }
+
+        // Inny błąd lub wyczerpane próby — zwróć błąd
         $error_message = __( 'Błąd API Gemini.', 'agencyjnie-ai-images' );
-        
-        // Wyciągnij szczegóły błędu z odpowiedzi
+
         if ( isset( $data['error']['message'] ) ) {
             $error_message = $data['error']['message'];
         }
-        
-        return new WP_Error( 
-            'api_error', 
-            sprintf( 
-                __( 'Błąd API (kod %d): %s', 'agencyjnie-ai-images' ), 
-                $response_code, 
-                $error_message 
-            ) 
+
+        if ( in_array( $response_code, array( 429, 503 ), true ) ) {
+            $error_message = sprintf(
+                __( 'Limit API wyczerpany po %d próbach. Spróbuj ponownie za kilka minut. Szczegóły: %s', 'agencyjnie-ai-images' ),
+                $max_retries + 1,
+                $error_message
+            );
+        }
+
+        return new WP_Error(
+            'api_error',
+            sprintf(
+                __( 'Błąd API (kod %d): %s', 'agencyjnie-ai-images' ),
+                $response_code,
+                $error_message
+            )
         );
     }
     

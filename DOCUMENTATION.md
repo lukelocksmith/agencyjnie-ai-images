@@ -1,162 +1,274 @@
-# AI Images - Plugin Documentation
+# AI Images - Plugin Documentation (v2.0)
 
 ## 1. Plugin Overview
-**AI Images** is a WordPress plugin designed to automate the creation of featured images for your posts using Google's Gemini AI (and optionally OpenAI's DALL-E 3). It analyzes the content of your article (title and excerpt) to generate a relevant, high-quality image that matches your specified art style.
 
-### Key Features
-- **One-Click Generation**: Generate a featured image directly from the post editor side panel.
-- **Auto-Generation**: Automatically generate images for new posts upon publication.
-- **Bulk Generation**: Generate featured images for multiple posts at once from the post list.
-- **Style Customization**: Choose from 18 art styles (Photorealistic, Digital Art, Cyberpunk, etc.) or define your own.
-- **Reference Images**: Upload up to 3 reference images to guide the AI's visual style (Gemini only).
-- **Smart Prompts**: Automatically builds detailed prompts based on your article's title and summary.
-- **SEO Friendly**: Automatically generates descriptive ALT text for images (optional).
-- **Multi-Model Support**: Gemini 2.5 Flash (fast/cheap), Gemini 2.5 Pro (highest quality), DALL-E 3 (good text rendering).
-- **Auto-Updates**: GitHub-based auto-updater for private repositories.
+**AI Images** is a WordPress plugin that automates featured image creation using Google Gemini AI and OpenAI DALL-E 3. It analyzes article content to generate relevant, high-quality images matching your brand style.
 
----
+### Feature Summary
 
-## 2. User Guide
-
-### Installation
-1.  Upload the `agencyjnie-ai-images` folder to your `/wp-content/plugins/` directory.
-2.  Log in to your WordPress Admin Dashboard.
-3.  Navigate to **Plugins** and click **Activate** under "AI Images".
-
-### Configuration
-Go to **Settings → AI Images** to configure the plugin.
-
-#### API Settings
--   **Gemini API Key** (Required): You need a key from Google AI Studio.
-    -   Get it here: [https://aistudio.google.com/app/apikey](https://aistudio.google.com/app/apikey)
-    -   Enter it in the "Klucz API Gemini" field.
--   **OpenAI API Key** (Optional): Required only if you want to use DALL-E 3.
--   **AI Model**: Select between:
-    -   **Gemini 2.5 Flash Image** — fast, ~$0.01/image
-    -   **Gemini 2.5 Pro** — highest quality, ~$0.05/image
-    -   **DALL-E 3** — good text rendering, ~$0.04–0.12/image
--   **GitHub Token** (Optional): For auto-updates from private repositories.
-
-#### Style Settings
--   **Base Prompt**: A general instruction applied to all images (e.g., "Professional, modern, high-quality image").
--   **Negative Prompt**: Attributes to avoid (e.g., "ugly, blurry, text, watermark").
--   **Art Style**: Choose a preset like *Photorealistic*, *Minimalist*, or *Isometric*. Select *User Defined* to write your own style description.
--   **Dominant Colors**: Pick up to 5 colors that the AI should prioritize in the image palette.
--   **Reference Images**: Upload up to 3 images as visual style guides (Gemini models only).
--   **Aspect Ratio**: Default is `16:9` (Panoramic), but you can choose `4:3`, `1:1`, `3:4`, `9:16`.
--   **Image Language**: Controls whether text should appear on the image. Options include specific languages, "Numbers only", or "No text".
-
-#### Automation
--   **Auto-generation**: Check this box to automatically generate a featured image when a post is published (status transition to `publish`), *only if* the post doesn't already have one.
-
-### How to Use
-
-#### Method 1: Manual Generation (Post Editor)
-1.  Open a Post in the editor.
-2.  Look for the **"AI Images"** meta box (usually in the sidebar or below the content).
-3.  Ensure your post has a **Title**.
-4.  Click **"Generuj obrazek"** (Generate Image).
-5.  Wait a few seconds. The image will be generated, added to the Media Library, and set as the Featured Image.
-
-#### Method 2: Automatic Generation
-1.  Ensure "Auto-generation" is enabled in Settings.
-2.  Write a new post and hit **Publish**.
-3.  The plugin will run in the background (via WP-Cron) and attach an image shortly after publication.
-
-#### Method 3: Bulk Generation
-1.  Go to **Posts → All Posts**.
-2.  Select the posts you want to generate images for using checkboxes.
-3.  From the **Bulk Actions** dropdown, select **"Generuj AI Featured Image"**.
-4.  Click **Apply**. A modal will appear showing progress.
-5.  Optionally check "Overwrite existing featured images".
+| Category | Features |
+|----------|----------|
+| **Generation** | One-click, auto on publish, bulk, standalone generator, image variants (3 options) |
+| **AI Models** | Gemini 2.5 Flash, Gemini 3 Pro Image Preview, DALL-E 3, Imagen 3 |
+| **Prompt System** | Auto-build from article, prompt templates, AI article analysis, prompt chaining (3 concepts) |
+| **Image Processing** | WebP conversion, watermark/logo overlay, social media crops (OG/Instagram/Pinterest), upscale, AI edit |
+| **Post Types** | Posts, Pages, custom post types (configurable), WooCommerce products |
+| **Style System** | 18 art presets, per-category style overrides, reference images, color palette, custom styles |
+| **Analytics** | Cost/stats dashboard, per-model tracking, daily chart |
+| **History** | Generation history per post (last 10), rollback to any previous image |
+| **Admin UI** | Unified tabbed interface (Settings, Stats, Categories, Generator, Queue) |
+| **Updates** | GitHub auto-updater with tag-based releases |
 
 ---
 
-## 3. Technical Documentation
+## 2. Architecture
 
 ### File Structure
-The plugin source is located in `wp-content/plugins/agencyjnie-ai-images/`.
 
--   **`agencyjnie-ai-images.php`**: The main plugin file. Initializes constants and loads includes.
--   **`includes/`**:
-    -   **`ai-service.php`**: Core logic for communicating with Google Gemini and OpenAI APIs. Handles requests and responses.
-    -   **`dalle-api.php`**: DALL-E 3 specific integration with prompt sanitization and size mapping.
-    -   **`prompt-builder.php`**: Specialized logic for constructing the text prompt sent to the AI.
-    -   **`settings-page.php`**: Renders the settings UI in WP Admin and handles option sanitization.
-    -   **`image-utils.php`**: Helper functions for handling image data, encryption, and saving to the Media Library.
-    -   **`meta-box.php`**: Adds the UI controls to the Post Editor.
-    -   **`bulk-actions.php`**: Bulk featured image generation from the post list.
-    -   **`github-updater.php`**: Auto-update mechanism from GitHub releases.
--   **`blocks/ai-image-block/`**: Gutenberg block for inline AI image generation.
--   **`admin/`**: Admin JavaScript and CSS assets.
-
-### Key Functions
-
-#### `aai_generate_image( $prompt, $aspect_ratio, $system_instruction )`
-Located in `includes/ai-service.php`.
--   **Input**: `$prompt` (string), `$aspect_ratio` (string|null), `$system_instruction` (string|null)
--   **Output**: Array containing `image_data` (base64) and `tokens` usage data, or a `WP_Error`.
--   **Description**: Dispatches the request to the selected AI model (Gemini Flash, Gemini Pro, or DALL-E 3) and processes the response.
-
-#### `aai_build_prompt( $post_id )`
-Located in `includes/prompt-builder.php`.
--   **Input**: `$post_id` (int)
--   **Output**: string (The constructed prompt)
--   **Description**: Combines the post title, excerpt, global style settings, color palette, and language instructions into a coherent prompt for the AI.
-
-#### `aai_save_image_to_media_library( ... )`
-Located in `includes/ai-service.php` (wrapper) and `image-utils.php`.
--   **Description**: Decodes the base64 image data, creates a file in the WordPress uploads directory, creates an attachment post, and sets the necessary metadata (ALT text, title).
-
-### Security
--   API keys are encrypted at rest using AES-256-CBC with WordPress salts (`aai_encrypt`/`aai_decrypt` in `image-utils.php`).
--   All AJAX handlers verify nonces and check user capabilities.
--   Settings sanitization uses whitelist validation for all enum fields.
-
-### Hooks & Filters
-
-#### `aai_image_prompt` (Filter)
-Allows developers to modify the generated prompt before it is sent to the AI.
-```php
-add_filter( 'aai_image_prompt', function( $prompt, $post_id, $post ) {
-    return $prompt . " Make it look like a oil painting.";
-}, 10, 3 );
+```
+agencyjnie-ai-images/
+├── agencyjnie-ai-images.php    # Main plugin file — constants, includes, AJAX handlers
+├── DOCUMENTATION.md            # This file
+├── readme.txt                  # WordPress-style readme
+├── admin/
+│   ├── admin.js                # All admin JavaScript (~2000 lines, jQuery IIFE)
+│   ├── admin.css               # All admin styles (~1900 lines)
+│   └── index.php
+├── blocks/
+│   └── ai-image-block/         # Gutenberg block (vanilla JS, no build step)
+│       ├── block.json
+│       ├── editor.css
+│       └── index.js
+└── includes/
+    ├── ai-service.php          # Gemini/OpenAI API calls, image generation, ALT text, article analysis, visual concepts
+    ├── bulk-actions.php         # Bulk generation from post list
+    ├── category-styles.php      # Per-category art style mapping (admin page + logic)
+    ├── dalle-api.php            # DALL-E 3 specific integration
+    ├── generation-queue.php     # "Queue" tab — find posts without images, bulk generate with progress
+    ├── github-updater.php       # Auto-update from GitHub releases
+    ├── image-utils.php          # Save to media library, WebP conversion, watermark overlay, encryption
+    ├── meta-box.php             # Post editor sidebar — generate button, prompt editor, history, variants, upscale
+    ├── prompt-builder.php       # Prompt construction, system instructions, language rules, style descriptions
+    ├── settings-page.php        # Unified tabbed settings (Settings, Stats, Categories, Generator tabs), all form fields
+    ├── social-images.php        # Social media variant generation (OG, Instagram, Pinterest), OG meta tags
+    ├── stats.php                # Custom DB table, generation logging, stats dashboard
+    ├── upscale.php              # Image upscaling and AI editing via Gemini
+    └── woo-product-shots.php    # WooCommerce product lifestyle photo generation
 ```
 
-#### `aai_allowed_post_types` (Filter)
-Control which post types trigger the automatic generation on publish and bulk actions. Defaults to `['post']`.
-```php
-add_filter( 'aai_allowed_post_types', function( $types ) {
-    $types[] = 'page';
-    $types[] = 'product';
-    return $types;
-} );
-```
+### Key Constants
 
-### Async Processing
-Automatic generation uses **WP-Cron** (`aai_async_auto_generate`) to avoid slowing down the publishing process. The `aai_auto_generate_on_publish` function schedules a single event which is then handled by `aai_process_async_generation`.
+| Constant | Value | Description |
+|----------|-------|-------------|
+| `AAI_VERSION` | `2.0.0` | Plugin version |
+| `AAI_PLUGIN_DIR` | `plugin_dir_path()` | Absolute path to plugin directory |
+| `AAI_PLUGIN_URL` | `plugin_dir_url()` | URL to plugin directory |
+| `AAI_PLUGIN_BASENAME` | `plugin_basename()` | e.g. `agencyjnie-ai-images/agencyjnie-ai-images.php` |
+
+### Options Storage
+
+All settings stored in single option `aai_options` (array). Sensitive keys (API keys) encrypted with AES-256-CBC using WP salts.
+
+Key option fields:
+- `api_key` — Gemini API key (encrypted)
+- `openai_api_key` — OpenAI API key (encrypted)
+- `ai_model` — `gemini-2.5-flash-image` | `gemini-3-pro-image-preview` | `dalle3` | `imagen3`
+- `base_prompt` — Global style prompt
+- `negative_prompt` — Things to avoid
+- `art_style` — Style preset key (e.g. `photorealistic`, `isometric_3d`)
+- `custom_style` — Custom style description (when art_style = `custom`)
+- `dominant_colors` — Array of hex colors (max 5)
+- `reference_images` — Array of image URLs (max 3)
+- `aspect_ratio` — `16:9` | `4:3` | `1:1` | `3:4` | `9:16`
+- `image_language` — Language code | `numbers_only` | `none`
+- `auto_generate` — `1` | `0`
+- `post_types` — Array of post type slugs
+- `webp_conversion` — `1` | `0`
+- `social_variants` — `1` | `0`
+- `auto_generate_alt` — `1` | `0`
+- `dalle_quality` — `standard` | `hd`
+- `github_token` — GitHub PAT (encrypted)
+- `prompt_templates` — Array of `['name' => string, 'prompt' => string]`
+- `watermark_enabled` — `1` | `0`
+- `watermark_logo` — Attachment URL
+- `watermark_position` — `bottom-right` | `bottom-left` | `top-right` | `top-left`
+- `watermark_size` — `small` | `medium` | `large`
+- `watermark_opacity` — Integer 10-100
+
+### Custom Database Table
+
+Table `{prefix}aai_generation_log` (created via `dbDelta` on plugin load):
+
+| Column | Type | Description |
+|--------|------|-------------|
+| id | BIGINT | Auto-increment PK |
+| post_id | BIGINT | Associated post (0 for standalone) |
+| model | VARCHAR(50) | AI model used |
+| tokens_used | INT | Total tokens |
+| estimated_cost | DECIMAL(10,6) | Estimated $ cost |
+| status | VARCHAR(20) | `success` or `error` |
+| created_at | DATETIME | Timestamp |
 
 ---
 
-## 4. Gutenberg Block: AI Image
+## 3. Core Functions Reference
 
-### Overview
-The plugin includes a custom Gutenberg block called **"AI Image"** that allows you to insert AI-generated images anywhere in your post content.
+### Image Generation
 
-### How to Use
-1.  In the Block Editor, click the **"+"** button to add a new block.
-2.  Search for **"AI Image"** or find it in the **Media** category.
-3.  Enter your **custom prompt** in the text area.
-4.  Click **"Generuj obrazek"** (Generate Image).
-5.  The image will appear in the block once generated.
+| Function | File | Description |
+|----------|------|-------------|
+| `aai_generate_image($prompt, $aspect, $system)` | ai-service.php | Dispatcher — routes to Gemini or DALL-E based on settings |
+| `aai_generate_image_gemini($prompt, $aspect, $model, $system)` | ai-service.php | Gemini API call with retry logic (429/503), reference images |
+| `aai_generate_image_dalle($prompt, $aspect)` | dalle-api.php | DALL-E 3 API call |
+| `aai_build_prompt($post_id)` | prompt-builder.php | Builds complete prompt from post + settings |
+| `aai_get_system_instruction($post_id)` | prompt-builder.php | System instruction for Gemini (language rules) |
+| `aai_analyze_article_for_prompt($post_id)` | ai-service.php | Sends article text to Gemini for smart prompt generation |
+| `aai_generate_visual_concepts($post_id)` | ai-service.php | Generates 3 visual concept options (prompt chaining) |
 
-### Style Overrides
-By default, the block uses your **global plugin settings** (art style, colors, etc.). However, you can override these per-block:
-1.  In the block's **Inspector Controls** (right sidebar), toggle **"Nadpisz globalne style"**.
-2.  Select a different **Art Style** and/or **Aspect Ratio**.
-3.  Click **"Regeneruj obrazek"** to apply the new style.
+### Image Processing
 
-### Technical Details
--   Block name: `aai/ai-image`
--   Location: `blocks/ai-image-block/`
--   AJAX action: `aai_generate_block_image`
+| Function | File | Description |
+|----------|------|-------------|
+| `aai_save_image_to_media_library($base64, $post_id, $type)` | ai-service.php | Wrapper — saves and sets metadata |
+| `aai_save_remote_image($data, $post_id, $meta)` | image-utils.php | Core saver — handles base64/URL, creates attachment, WebP, watermark, ALT |
+| `aai_convert_to_webp($file_path)` | image-utils.php | GD/Imagick WebP conversion |
+| `aai_apply_watermark($file_path)` | image-utils.php | GD overlay of logo with configurable position/size/opacity |
+| `aai_generate_social_variants($attachment_id, $post_id)` | social-images.php | Crops to OG 1200x630, Instagram 1080x1080, Pinterest 1000x1500 |
+| `aai_crop_image($file, $w, $h)` | social-images.php | Center-crop with GD |
+| `aai_upscale_image($attachment_id, $post_id)` | upscale.php | Send image to Gemini for enhancement |
+| `aai_edit_image($attachment_id, $post_id, $edit_prompt)` | upscale.php | Send image + text instructions to Gemini |
+
+### Stats & Logging
+
+| Function | File | Description |
+|----------|------|-------------|
+| `aai_log_generation($post_id, $model, $tokens, $status)` | stats.php | Log generation to custom table |
+| `aai_estimate_cost($model, $tokens)` | stats.php | Per-model cost estimation |
+| `aai_get_stats($period)` | stats.php | Aggregate stats (total, by model, daily chart data) |
+
+### Security
+
+| Function | File | Description |
+|----------|------|-------------|
+| `aai_encrypt($value)` | image-utils.php | AES-256-CBC encrypt using WP salts |
+| `aai_decrypt($value)` | image-utils.php | AES-256-CBC decrypt |
+| `aai_get_secure_option($key)` | image-utils.php | Get + decrypt sensitive option |
+| `aai_set_secure_option($key, $value)` | image-utils.php | Encrypt + save sensitive option |
+
+---
+
+## 4. AJAX Endpoints
+
+All endpoints require nonce verification and `edit_post` / `manage_options` capability.
+
+| Action | Handler | Description |
+|--------|---------|-------------|
+| `aai_generate_image` | agencyjnie-ai-images.php | Generate featured image for post |
+| `aai_generate_block_image` | agencyjnie-ai-images.php | Generate image for Gutenberg block |
+| `aai_test_connection` | agencyjnie-ai-images.php | Test API key connection |
+| `aai_preview_prompt` | agencyjnie-ai-images.php | Preview built prompt for a post |
+| `aai_rollback_image` | agencyjnie-ai-images.php | Rollback to previous featured image |
+| `aai_generate_variant` | agencyjnie-ai-images.php | Generate one variant (called 3x for 3 variants) |
+| `aai_set_variant` | agencyjnie-ai-images.php | Set chosen variant as featured image |
+| `aai_analyze_article` | agencyjnie-ai-images.php | AI article analysis for prompt |
+| `aai_generate_concepts` | agencyjnie-ai-images.php | Generate 3 visual concepts (prompt chaining) |
+| `aai_upscale_image` | agencyjnie-ai-images.php | Upscale current featured image |
+| `aai_edit_image` | agencyjnie-ai-images.php | Edit image with text prompt |
+| `aai_bulk_generate` | bulk-actions.php | Generate image for single post (called per-post in bulk) |
+| `aai_find_posts_without_images` | generation-queue.php | Find posts missing featured images |
+| `aai_generate_standalone` | agencyjnie-ai-images.php | Generate image from prompt (no post) |
+| `aai_generate_product_shot` | woo-product-shots.php | Generate lifestyle product photo |
+| `aai_add_to_product_gallery` | woo-product-shots.php | Add generated image to WooCommerce product gallery |
+
+---
+
+## 5. Filters & Hooks
+
+### Filters
+
+```php
+// Modify prompt before sending to AI
+add_filter('aai_image_prompt', function($prompt, $post_id, $post) {
+    return $prompt;
+}, 10, 3);
+
+// Control which post types support AI images
+add_filter('aai_allowed_post_types', function($types) {
+    $types[] = 'product';
+    return $types;
+});
+
+// Same filter but for meta box specifically
+add_filter('aai_meta_box_post_types', function($types) {
+    return $types;
+});
+```
+
+### Actions
+
+The plugin hooks into standard WordPress actions:
+- `admin_menu` — registers settings page
+- `admin_enqueue_scripts` — loads admin JS/CSS (only on relevant pages)
+- `transition_post_status` — auto-generation on publish
+- `wp_head` — outputs OG meta tags for social images
+
+---
+
+## 6. Admin JavaScript (admin.js)
+
+jQuery IIFE pattern. Key initialization functions:
+
+| Function | Lines | Description |
+|----------|-------|-------------|
+| `initPromptPreview()` | — | Prompt editor: load, refresh, modify tracking |
+| `initPromptTemplates()` | — | Template dropdown in meta box |
+| `initImageHistory()` | — | History thumbnails + rollback |
+| `initVariantsButton()` | — | "Generate 3 variants" + modal |
+| `initConceptChaining()` | — | "Propose concepts" → 3 concept cards |
+| `initUpscaleEdit()` | — | Upscale + AI edit buttons |
+| `initStandaloneGenerator()` | — | Generator tab AJAX |
+| `initGenerationQueue()` | — | Queue tab: find posts, sequential generation, progress |
+| `initStylePreview()` | — | Live style preview on settings page |
+| `initProductShots()` | — | WooCommerce product shots UI |
+
+### Localized Data (`aaiData`)
+
+Passed from PHP via `wp_localize_script`:
+- `aaiData.ajaxUrl` — `admin_url('admin-ajax.php')`
+- `aaiData.nonce` — `wp_create_nonce('aai_generate_image')`
+- `aaiData.postId` — current post ID
+- `aaiData.strings` — translatable UI strings
+- `aaiData.bulkNonce` — bulk action nonce
+- `aaiData.promptTemplates` — saved templates array
+
+---
+
+## 7. Rate Limiting & Retry
+
+Gemini API calls include automatic retry for rate limiting:
+- **HTTP 429** (Rate Limit) and **503** (Resource Exhausted) trigger retry
+- **3 retries** with delays: 10s, 25s, 60s
+- Respects `Retry-After` header if present
+- Final failure returns descriptive Polish error message
+
+---
+
+## 8. WooCommerce Integration
+
+When WooCommerce is active (`class_exists('WooCommerce')`):
+- `woo-product-shots.php` is loaded
+- Product meta box "AI Zdjęcia produktowe" appears on product edit screen
+- Upload product photos → describe scenes → generate lifestyle shots
+- One-click "Add to product gallery" for generated images
+- Uses `aai_send_image_to_gemini()` from upscale.php for image-to-image generation
+
+---
+
+## 9. GitHub Auto-Updater
+
+Class `AAI_GitHub_Updater` in `github-updater.php`:
+- Repo: `lukelocksmith/agencyjnie-ai-images`
+- Checks latest release tag vs `AAI_VERSION`
+- Downloads ZIP from release assets
+- Supports private repos via GitHub token
+- Hooks: `pre_set_site_transient_update_plugins`, `plugins_api`, `upgrader_process_complete`
