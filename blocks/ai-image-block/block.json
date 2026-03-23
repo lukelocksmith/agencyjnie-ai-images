@@ -51,6 +51,10 @@
         "aspectRatio": {
             "type": "string",
             "default": ""
+        },
+        "contentType": {
+            "type": "string",
+            "default": ""
         }
     }
 }

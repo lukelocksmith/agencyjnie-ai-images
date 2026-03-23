@@ -15,11 +15,28 @@
     flex-direction: column;
     gap: 10px;
     width: 100%;
-    max-width: 400px;
+    max-width: 500px;
 }
 
 .aai-block-ai-image .components-placeholder__fieldset .components-textarea-control__input {
     width: 100%;
+}
+
+/* Select controls in placeholder */
+.aai-block-ai-image .components-placeholder__fieldset .components-select-control {
+    width: 100%;
+}
+
+/* Two selectors side-by-side in placeholder */
+.aai-block-selectors-row {
+    display: flex;
+    gap: 10px;
+    width: 100%;
+}
+
+.aai-block-selectors-row .components-select-control {
+    flex: 1;
+    min-width: 0;
 }
 
 .aai-block-figure {

@@ -24,27 +24,19 @@
     var useRef = wp.element.useRef;
     var __ = wp.i18n.__;
 
-    // Art style options (matching PHP settings)
-    var ART_STYLE_OPTIONS = [
-        { value: '', label: __('Użyj globalnego stylu', 'agencyjnie-ai-images') },
-        { value: 'photorealistic', label: 'Photorealistic' },
-        { value: 'digital_art', label: 'Digital Art' },
-        { value: 'isometric', label: 'Isometric 3D' },
-        { value: 'minimalist', label: 'Minimalist' },
-        { value: 'cyberpunk', label: 'Cyberpunk' },
-        { value: 'watercolor', label: 'Watercolor' },
-        { value: 'sketch', label: 'Sketch' },
-        { value: 'pop_art', label: 'Pop Art' },
-        { value: 'abstract', label: 'Abstract' },
-        { value: 'flat_illustration', label: 'Flat Illustration' },
-        { value: '3d_render', label: '3D Render' },
-        { value: 'retro_vintage', label: 'Retro / Vintage' },
-        { value: 'neon_glow', label: 'Neon Glow' },
-        { value: 'paper_cut', label: 'Paper Cut' },
-        { value: 'pixel_art', label: 'Pixel Art' },
-        { value: 'line_art', label: 'Line Art' },
-        { value: 'gradient_mesh', label: 'Gradient Mesh' },
-        { value: 'collage', label: 'Collage' },
+    // Art style options — loaded from PHP via aaiBlockData (single source of truth)
+    var ART_STYLE_OPTIONS = window.aaiBlockData?.artStyles || [
+        { value: '', label: 'Użyj globalnego stylu' }
+    ];
+
+    // Content type options — loaded from PHP via aaiBlockData
+    var CONTENT_TYPE_OPTIONS = window.aaiBlockData?.contentTypes || [
+        { value: '', label: 'Standardowy (dekoracyjny)' }
+    ];
+
+    // Prompt templates — loaded from PHP (saved in plugin settings)
+    var PROMPT_TEMPLATE_OPTIONS = window.aaiBlockData?.promptTemplates || [
+        { value: '', label: 'Wybierz szablon...' }
     ];
 
     var ASPECT_RATIO_OPTIONS = [
@@ -70,6 +62,7 @@
         var overrideStyle = attributes.overrideStyle;
         var artStyle = attributes.artStyle;
         var aspectRatio = attributes.aspectRatio;
+        var contentType = attributes.contentType;
 
         // Local UI state — NOT persisted to DB
         var generatingState = useState(false);
@@ -128,6 +121,7 @@
                     override_style: overrideStyle ? '1' : '0',
                     art_style: artStyle,
                     aspect_ratio: aspectRatio,
+                    content_type: contentType,
                 },
                 timeout: 120000,
                 beforeSend: function () {
@@ -187,21 +181,29 @@
 
         // --- Sidebar (InspectorControls) ---
 
-        var sidebarStyleOverrides = overrideStyle
-            ? el(Fragment, null,
-                el(SelectControl, {
-                    label: __('Styl artystyczny', 'agencyjnie-ai-images'),
-                    value: artStyle,
-                    options: ART_STYLE_OPTIONS,
-                    onChange: function (value) { setAttributes({ artStyle: value }); }
-                }),
-                el(SelectControl, {
-                    label: __('Proporcje', 'agencyjnie-ai-images'),
-                    value: aspectRatio,
-                    options: ASPECT_RATIO_OPTIONS,
-                    onChange: function (value) { setAttributes({ aspectRatio: value }); }
-                })
-            )
+        // Prompt templates selector (only show if templates exist)
+        var hasTemplates = PROMPT_TEMPLATE_OPTIONS.length > 1;
+        var promptTemplateSelect = hasTemplates
+            ? el(SelectControl, {
+                label: __('Szablon promptu', 'agencyjnie-ai-images'),
+                value: '',
+                options: PROMPT_TEMPLATE_OPTIONS,
+                onChange: function (value) {
+                    if (value) {
+                        setAttributes({ customPrompt: value });
+                    }
+                }
+            })
+            : null;
+
+        // Aspect ratio override (behind toggle)
+        var sidebarAspectOverride = overrideStyle
+            ? el(SelectControl, {
+                label: __('Proporcje', 'agencyjnie-ai-images'),
+                value: aspectRatio,
+                options: ASPECT_RATIO_OPTIONS,
+                onChange: function (value) { setAttributes({ aspectRatio: value }); }
+            })
             : null;
 
         var sidebarGenerateButtonContent = isGenerating
@@ -210,6 +212,7 @@
 
         var sidebar = el(InspectorControls, null,
             el(PanelBody, { title: __('Ustawienia obrazka', 'agencyjnie-ai-images'), initialOpen: true },
+                promptTemplateSelect,
                 el(TextareaControl, {
                     label: __('Prompt', 'agencyjnie-ai-images'),
                     help: __('Opisz jaki obrazek chcesz wygenerować.', 'agencyjnie-ai-images'),
@@ -217,12 +220,25 @@
                     onChange: function (value) { setAttributes({ customPrompt: value }); },
                     rows: 4
                 }),
+                el(SelectControl, {
+                    label: __('Typ zawartości', 'agencyjnie-ai-images'),
+                    help: __('Wybierz typ wizualizacji dopasowany do treści.', 'agencyjnie-ai-images'),
+                    value: contentType,
+                    options: CONTENT_TYPE_OPTIONS,
+                    onChange: function (value) { setAttributes({ contentType: value }); }
+                }),
+                el(SelectControl, {
+                    label: __('Styl artystyczny', 'agencyjnie-ai-images'),
+                    value: artStyle,
+                    options: ART_STYLE_OPTIONS,
+                    onChange: function (value) { setAttributes({ artStyle: value }); }
+                }),
                 el(ToggleControl, {
-                    label: __('Nadpisz globalne style', 'agencyjnie-ai-images'),
+                    label: __('Nadpisz proporcje', 'agencyjnie-ai-images'),
                     checked: overrideStyle,
                     onChange: function (value) { setAttributes({ overrideStyle: value }); }
                 }),
-                sidebarStyleOverrides,
+                sidebarAspectOverride,
                 el(Button, {
                     variant: 'primary',
                     onClick: handleGenerate,
@@ -242,17 +258,46 @@
 
         if (!imageUrl) {
             // Placeholder state — no image yet
+            // Prompt template selector for placeholder (only if templates exist)
+            var placeholderTemplateSelect = hasTemplates
+                ? el(SelectControl, {
+                    label: __('Szablon promptu', 'agencyjnie-ai-images'),
+                    value: '',
+                    options: PROMPT_TEMPLATE_OPTIONS,
+                    onChange: function (value) {
+                        if (value) {
+                            setAttributes({ customPrompt: value });
+                        }
+                    }
+                })
+                : null;
+
             blockContent = el(Placeholder, {
                     icon: 'format-image',
                     label: __('AI Image', 'agencyjnie-ai-images'),
-                    instructions: __('Wpisz prompt w panelu bocznym i kliknij "Generuj obrazek".', 'agencyjnie-ai-images')
+                    instructions: __('Wpisz prompt lub wybierz szablon, ustaw typ i styl, kliknij "Generuj".', 'agencyjnie-ai-images')
                 },
+                placeholderTemplateSelect,
                 el(TextareaControl, {
                     placeholder: __('Opisz obrazek, który chcesz wygenerować...', 'agencyjnie-ai-images'),
                     value: customPrompt,
                     onChange: function (value) { setAttributes({ customPrompt: value }); },
                     rows: 3
                 }),
+                el('div', { className: 'aai-block-selectors-row' },
+                    el(SelectControl, {
+                        label: __('Typ zawartości', 'agencyjnie-ai-images'),
+                        value: contentType,
+                        options: CONTENT_TYPE_OPTIONS,
+                        onChange: function (value) { setAttributes({ contentType: value }); }
+                    }),
+                    el(SelectControl, {
+                        label: __('Styl artystyczny', 'agencyjnie-ai-images'),
+                        value: artStyle,
+                        options: ART_STYLE_OPTIONS,
+                        onChange: function (value) { setAttributes({ artStyle: value }); }
+                    })
+                ),
                 el(Button, {
                     variant: 'primary',
                     onClick: handleGenerate,

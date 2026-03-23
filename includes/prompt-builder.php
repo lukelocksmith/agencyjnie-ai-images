@@ -355,3 +355,67 @@ function aai_get_all_style_descriptions() {
         'collage'        => 'Mixed media collage, cut-out photographic elements, textured paper layers, bold typography fragments, editorial magazine style, creative juxtaposition, modern zine aesthetic',
     );
 }
+
+/**
+ * Centralna definicja typów zawartości (content types) z promptami
+ *
+ * Typ zawartości mówi CO pokazać (infografika, diagram, schemat),
+ * podczas gdy styl artystyczny mówi JAK to pokazać (watercolor, flat, 3D).
+ *
+ * @return array Klucz typu => array( 'label' => ..., 'prompt' => ... )
+ */
+function aai_get_all_content_type_descriptions() {
+    return array(
+        'infographic'    => array(
+            'label'  => 'Infografika',
+            'prompt' => 'Create an infographic-style image with clear visual hierarchy, organized sections, icons or simple pictograms representing key concepts, clean layout with visual separators. Information should flow logically.',
+        ),
+        'simple_illustration' => array(
+            'label'  => 'Prosta ilustracja',
+            'prompt' => 'Create a simple, clean illustration that visually explains the concept. Use clear, recognizable shapes and minimal detail. The illustration should be immediately understandable.',
+        ),
+        'diagram' => array(
+            'label'  => 'Diagram',
+            'prompt' => 'Create a clear diagram showing relationships between concepts. Use boxes, circles, or shapes connected by lines or arrows. Labels should be concise. Clean and easy to follow.',
+        ),
+        'flowchart' => array(
+            'label'  => 'Schemat blokowy',
+            'prompt' => 'Create a flowchart showing a process or decision tree. Use standard flowchart shapes (rectangles for processes, diamonds for decisions). Connect with directional arrows. Clean and readable.',
+        ),
+        'comparison' => array(
+            'label'  => 'Porównanie',
+            'prompt' => 'Create a visual comparison layout showing two or more options side by side. Use a clear split layout, icons or visual representations, and indicators for differences and similarities.',
+        ),
+        'timeline' => array(
+            'label'  => 'Oś czasu',
+            'prompt' => 'Create a timeline visualization showing events or steps in chronological order. Use a clear line with marked points, dates or step numbers, and brief visual representations.',
+        ),
+        'data_chart' => array(
+            'label'  => 'Wykres danych',
+            'prompt' => 'Create a data visualization chart (bar chart, pie chart, or line graph). Use clean readable axes, clear data representations, and professional color scheme.',
+        ),
+        'schema' => array(
+            'label'  => 'Schemat techniczny',
+            'prompt' => 'Create a technical schema or architectural diagram showing system components and connections. Use clean geometric shapes, connecting lines, clear labels. Organized and professional.',
+        ),
+        'mindmap' => array(
+            'label'  => 'Mapa myśli',
+            'prompt' => 'Create a mind map with a central concept branching to related subtopics. Use organic branching lines, varying sizes for hierarchy, color coding for branches.',
+        ),
+        'step_by_step' => array(
+            'label'  => 'Krok po kroku',
+            'prompt' => 'Create a step-by-step visual guide with numbered steps and simple illustrations for each. Use sequential layout, numbered circles, and simple icons per step.',
+        ),
+    );
+}
+
+/**
+ * Pobiera dane typu zawartości po kluczu
+ *
+ * @param string $key Klucz typu zawartości
+ * @return array|null Dane typu lub null jeśli nie znaleziono
+ */
+function aai_get_content_type_by_key( $key ) {
+    $types = aai_get_all_content_type_descriptions();
+    return isset( $types[ $key ] ) ? $types[ $key ] : null;
+}

@@ -3,7 +3,7 @@
  * Plugin Name: AI Images
  * Plugin URI: https://agencyjnie.pl
  * Description: Automatyczne generowanie featured images przy użyciu Google Gemini AI
- * Version: 2.0.0
+ * Version: 2.1.0
  * Author: important.is
  * Author URI: https://important.is
  * License: GPL v2 or later
@@ -16,7 +16,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 // Stałe wtyczki
-define( 'AAI_VERSION', '2.0.0' );
+define( 'AAI_VERSION', '2.1.0' );
 define( 'AAI_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'AAI_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 define( 'AAI_PLUGIN_BASENAME', plugin_basename( __FILE__ ) );
@@ -36,6 +36,7 @@ function aai_load_includes() {
     require_once AAI_PLUGIN_DIR . 'includes/social-images.php';
     require_once AAI_PLUGIN_DIR . 'includes/upscale.php';
     require_once AAI_PLUGIN_DIR . 'includes/generation-queue.php';
+    require_once AAI_PLUGIN_DIR . 'includes/image-planner.php';
 
     // WooCommerce Product Shots — only load when WooCommerce is active
     if ( class_exists( 'WooCommerce' ) ) {
@@ -800,8 +801,11 @@ function aai_register_gutenberg_block() {
         'aai-ai-image-block-editor',
         'aaiBlockData',
         array(
-            'ajaxUrl' => admin_url( 'admin-ajax.php' ),
-            'nonce'   => wp_create_nonce( 'aai_block_generate' ),
+            'ajaxUrl'      => admin_url( 'admin-ajax.php' ),
+            'nonce'        => wp_create_nonce( 'aai_block_generate' ),
+            'artStyles'       => aai_get_block_art_style_options(),
+            'contentTypes'    => aai_get_block_content_type_options(),
+            'promptTemplates' => aai_get_block_prompt_template_options(),
         )
     );
     
@@ -822,6 +826,77 @@ function aai_register_gutenberg_block() {
 add_action( 'init', 'aai_register_gutenberg_block' );
 
 /**
+ * Enqueue AI Image Planner panel for the block editor
+ */
+function aai_enqueue_image_planner() {
+    // Only load in post/page editor, not site editor or widget editor
+    $screen = get_current_screen();
+    if ( ! $screen || 'post' !== $screen->base ) {
+        return;
+    }
+
+    wp_enqueue_script(
+        'aai-image-planner-editor',
+        AAI_PLUGIN_URL . 'blocks/image-planner/index.js',
+        array( 'wp-plugins', 'wp-edit-post', 'wp-element', 'wp-components',
+               'wp-data', 'wp-blocks', 'wp-block-editor', 'wp-i18n', 'jquery' ),
+        AAI_VERSION,
+        true
+    );
+    wp_localize_script( 'aai-image-planner-editor', 'aaiPlannerData', array(
+        'ajaxUrl' => admin_url( 'admin-ajax.php' ),
+        'nonce'   => wp_create_nonce( 'aai_block_generate' ),
+    ) );
+    wp_enqueue_style(
+        'aai-image-planner-editor-style',
+        AAI_PLUGIN_URL . 'blocks/image-planner/editor.css',
+        array(),
+        AAI_VERSION
+    );
+}
+add_action( 'enqueue_block_editor_assets', 'aai_enqueue_image_planner' );
+
+/**
+ * Opcje stylów artystycznych dla bloku Gutenberg (z PHP → JS)
+ */
+function aai_get_block_art_style_options() {
+    $styles = aai_get_all_style_descriptions();
+    $options = array( array( 'value' => '', 'label' => 'Użyj globalnego stylu' ) );
+    foreach ( $styles as $key => $desc ) {
+        $options[] = array( 'value' => $key, 'label' => ucfirst( str_replace( '_', ' ', $key ) ) );
+    }
+    return $options;
+}
+
+/**
+ * Opcje typów zawartości dla bloku Gutenberg (z PHP → JS)
+ */
+function aai_get_block_content_type_options() {
+    $types = aai_get_all_content_type_descriptions();
+    $options = array( array( 'value' => '', 'label' => 'Standardowy (dekoracyjny)' ) );
+    foreach ( $types as $key => $data ) {
+        $options[] = array( 'value' => $key, 'label' => $data['label'] );
+    }
+    return $options;
+}
+
+/**
+ * Szablony promptów dla bloku Gutenberg (z PHP → JS)
+ */
+function aai_get_block_prompt_template_options() {
+    $templates = aai_get_option( 'prompt_templates', array() );
+    $options = array( array( 'value' => '', 'label' => 'Wybierz szablon...' ) );
+    if ( is_array( $templates ) ) {
+        foreach ( $templates as $tpl ) {
+            if ( ! empty( $tpl['name'] ) && ! empty( $tpl['prompt'] ) ) {
+                $options[] = array( 'value' => $tpl['prompt'], 'label' => $tpl['name'] );
+            }
+        }
+    }
+    return $options;
+}
+
+/**
  * AJAX handler do generowania obrazka z bloku Gutenberg
  */
 function aai_ajax_generate_block_image() {
@@ -836,6 +911,7 @@ function aai_ajax_generate_block_image() {
     $override_style = isset( $_POST['override_style'] ) && $_POST['override_style'] === '1';
     $art_style     = isset( $_POST['art_style'] ) ? sanitize_text_field( $_POST['art_style'] ) : '';
     $aspect_ratio  = isset( $_POST['aspect_ratio'] ) ? sanitize_text_field( $_POST['aspect_ratio'] ) : '';
+    $content_type  = isset( $_POST['content_type'] ) ? sanitize_text_field( $_POST['content_type'] ) : '';
 
     // Sprawdzenie uprawnień do edycji posta
     if ( $post_id > 0 ) {
@@ -851,6 +927,14 @@ function aai_ajax_generate_block_image() {
         $allowed_art_styles = array_keys( aai_get_all_style_descriptions() );
         if ( ! in_array( $art_style, $allowed_art_styles, true ) ) {
             $art_style = '';
+        }
+    }
+
+    // Walidacja content_type przeciwko dozwolonym wartościom
+    if ( ! empty( $content_type ) ) {
+        $allowed_content_types = array_keys( aai_get_all_content_type_descriptions() );
+        if ( ! in_array( $content_type, $allowed_content_types, true ) ) {
+            $content_type = '';
         }
     }
 
@@ -874,11 +958,25 @@ function aai_ajax_generate_block_image() {
     
     // Zbuduj prompt z użyciem ustawień globalnych lub nadpisanych
     $prompt_parts = array();
-    $prompt_parts[] = "Create a visually striking image based on this description:";
-    $prompt_parts[] = $custom_prompt;
+
+    // Jeśli wybrany typ zawartości — użyj promptu typu + treść do wizualizacji
+    // W przeciwnym razie — domyślny generyczny prompt
+    if ( ! empty( $content_type ) ) {
+        $type_data = aai_get_content_type_by_key( $content_type );
+        if ( $type_data ) {
+            $prompt_parts[] = $type_data['prompt'];
+            $prompt_parts[] = sprintf( "Content to visualize: %s", $custom_prompt );
+        } else {
+            $prompt_parts[] = "Create a visually striking image based on this description:";
+            $prompt_parts[] = $custom_prompt;
+        }
+    } else {
+        $prompt_parts[] = "Create a visually striking image based on this description:";
+        $prompt_parts[] = $custom_prompt;
+    }
     
-    // Styl artystyczny
-    if ( $override_style && ! empty( $art_style ) ) {
+    // Styl artystyczny — jeśli wybrany w bloku, użyj go; w przeciwnym razie globalny
+    if ( ! empty( $art_style ) ) {
         $style_desc = aai_get_style_description_by_key( $art_style );
         if ( $style_desc ) {
             $prompt_parts[] = sprintf( "Art style: %s", $style_desc );
@@ -937,6 +1035,9 @@ function aai_ajax_generate_block_image() {
     update_post_meta( $attachment_id, '_aai_source', 'ai_generated' );
     update_post_meta( $attachment_id, '_aai_block_image', true );
     update_post_meta( $attachment_id, '_aai_original_prompt', $custom_prompt );
+    if ( ! empty( $content_type ) ) {
+        update_post_meta( $attachment_id, '_aai_content_type', $content_type );
+    }
 
     $image_url = wp_get_attachment_image_url( $attachment_id, 'large' );
     $alt_text  = wp_strip_all_tags( substr( $custom_prompt, 0, 125 ) );

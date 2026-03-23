@@ -1,0 +1,137 @@
+/**
+ * AI Image Planner — Editor panel styles
+ */
+
+/* Panel button */
+.aai-planner-analyze-btn {
+    width: 100%;
+    justify-content: center;
+}
+
+.aai-planner-generate-all-btn {
+    width: 100%;
+    justify-content: center;
+}
+
+/* Loading state */
+.aai-planner-loading {
+    display: flex;
+    align-items: center;
+    padding: 8px 0;
+    color: #757575;
+    font-size: 13px;
+}
+
+.aai-planner-loading .components-spinner {
+    margin: 0 8px 0 0;
+}
+
+/* Messages */
+.aai-planner-error {
+    padding: 8px 12px;
+    margin-bottom: 12px;
+    background: #fcf0f1;
+    border-left: 4px solid #d63638;
+    color: #8a1f21;
+    font-size: 13px;
+}
+
+.aai-planner-success {
+    padding: 8px 12px;
+    margin-bottom: 12px;
+    background: #edfaef;
+    border-left: 4px solid #00a32a;
+    color: #0a5c1a;
+    font-size: 13px;
+}
+
+/* Suggestion card */
+.aai-planner-suggestion {
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    padding: 10px;
+    margin-bottom: 10px;
+    background: #fff;
+    transition: border-color 0.15s ease;
+}
+
+.aai-planner-suggestion.is-checked {
+    border-color: #007cba;
+    background: #f0f7fc;
+}
+
+.aai-planner-suggestion .components-checkbox-control__label {
+    font-size: 12px;
+    color: #50575e;
+    line-height: 1.4;
+    word-break: break-word;
+}
+
+/* Controls row (type + style selects) */
+.aai-planner-controls {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+    margin: 8px 0;
+}
+
+.aai-planner-controls .components-select-control__input {
+    font-size: 12px;
+    min-height: 30px;
+}
+
+.aai-planner-controls .components-base-control__label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: #757575;
+    margin-bottom: 2px;
+}
+
+/* Prompt textarea in suggestion */
+.aai-planner-suggestion .components-textarea-control__input {
+    font-size: 12px;
+    min-height: 60px;
+    resize: vertical;
+}
+
+.aai-planner-suggestion .components-base-control {
+    margin-bottom: 0;
+}
+
+/* Reason text */
+.aai-planner-reason {
+    font-size: 12px;
+    font-style: italic;
+    color: #757575;
+    margin-top: 6px;
+    padding-top: 6px;
+    border-top: 1px solid #eee;
+    line-height: 1.4;
+}
+
+/* Action buttons */
+.aai-planner-actions {
+    display: flex;
+    align-items: center;
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid #ddd;
+}
+
+/* Progress bar */
+.aai-planner-progress {
+    width: 100%;
+    height: 4px;
+    background: #ddd;
+    border-radius: 2px;
+    margin-top: 8px;
+    overflow: hidden;
+}
+
+.aai-planner-progress-fill {
+    height: 100%;
+    background: #007cba;
+    border-radius: 2px;
+    transition: width 0.3s ease;
+}
