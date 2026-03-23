@@ -1,11 +1,14 @@
 <?php
 /**
- * Style artystyczne per kategoria
+ * Dodatkowe instrukcje promptu per kategoria
  */
 if ( ! defined( 'ABSPATH' ) ) exit;
 
 /**
- * Gets the style for a post based on its categories
+ * Gets the additional prompt instructions for a post based on its categories.
+ *
+ * @param int $post_id
+ * @return string|null Additional prompt text, or null if none set.
  */
 function aai_get_category_style( $post_id ) {
     $mappings = get_option( 'aai_category_styles', array() );
@@ -18,7 +21,7 @@ function aai_get_category_style( $post_id ) {
         return null;
     }
 
-    // Check each category (first match wins)
+    // First match wins
     foreach ( $categories as $cat_id ) {
         if ( isset( $mappings[ $cat_id ] ) && ! empty( $mappings[ $cat_id ] ) ) {
             return $mappings[ $cat_id ];
@@ -27,9 +30,6 @@ function aai_get_category_style( $post_id ) {
 
     return null;
 }
-
-// Category styles page is now rendered as a tab in the unified settings page.
-// See settings-page.php → aai_render_settings_page().
 
 /**
  * Handle save action
@@ -42,45 +42,43 @@ function aai_save_category_styles() {
         return;
     }
 
-    $styles = isset( $_POST['category_styles'] ) ? (array) $_POST['category_styles'] : array();
+    $inputs = isset( $_POST['category_styles'] ) ? (array) $_POST['category_styles'] : array();
 
-    // Sanitize
     $sanitized = array();
-    $allowed_styles = array_keys( aai_get_all_style_descriptions() );
-    $allowed_styles[] = ''; // allow empty (no override)
-
-    foreach ( $styles as $cat_id => $style_key ) {
-        $cat_id = absint( $cat_id );
-        $style_key = sanitize_text_field( $style_key );
-        if ( $cat_id > 0 && in_array( $style_key, $allowed_styles, true ) ) {
-            if ( ! empty( $style_key ) ) {
-                $sanitized[ $cat_id ] = $style_key;
-            }
+    foreach ( $inputs as $cat_id => $prompt_text ) {
+        $cat_id      = absint( $cat_id );
+        $prompt_text = sanitize_textarea_field( wp_unslash( $prompt_text ) );
+        if ( $cat_id > 0 && ! empty( $prompt_text ) ) {
+            $sanitized[ $cat_id ] = $prompt_text;
         }
     }
 
     update_option( 'aai_category_styles', $sanitized );
 
-    add_settings_error( 'aai_category_styles', 'saved', __( 'Style kategorii zapisane.', 'agencyjnie-ai-images' ), 'updated' );
+    add_settings_error( 'aai_category_styles', 'saved', __( 'Instrukcje kategorii zapisane.', 'agencyjnie-ai-images' ), 'updated' );
 }
 add_action( 'admin_init', 'aai_save_category_styles' );
 
 /**
- * Render the category styles admin page
+ * Render the category prompt instructions admin page
  */
 function aai_render_category_styles_page() {
     if ( ! current_user_can( 'manage_options' ) ) {
         return;
     }
 
-    $mappings = get_option( 'aai_category_styles', array() );
-    $all_styles = aai_get_all_style_descriptions();
+    $mappings   = get_option( 'aai_category_styles', array() );
     $categories = get_categories( array( 'hide_empty' => false ) );
 
     settings_errors( 'aai_category_styles' );
     ?>
     <div class="aai-category-styles-wrap">
-        <p class="description"><?php esc_html_e( 'Przypisz styl artystyczny do każdej kategorii. Posty z danej kategorii będą automatycznie używać przypisanego stylu zamiast globalnego.', 'agencyjnie-ai-images' ); ?></p>
+        <p class="description">
+            <?php esc_html_e( 'Wpisz dodatkowe instrukcje promptu dla każdej kategorii. Zostaną one dołączone do promptu przy generowaniu obrazka dla wpisów z danej kategorii. Możesz np. określić styl, kolorystykę, motyw wizualny lub dowolne inne wskazówki dla AI.', 'agencyjnie-ai-images' ); ?>
+        </p>
+        <p class="description" style="margin-top:4px;">
+            <em><?php esc_html_e( 'Przykład: "Use warm orange and brown tones, autumn atmosphere, cozy coffee shop vibe"', 'agencyjnie-ai-images' ); ?></em>
+        </p>
 
         <form method="post" action="<?php echo esc_url( admin_url( 'options-general.php?page=agencyjnie-ai-images&tab=categories' ) ); ?>">
             <?php wp_nonce_field( 'aai_save_category_styles', 'aai_category_styles_nonce' ); ?>
@@ -88,35 +86,33 @@ function aai_render_category_styles_page() {
             <table class="widefat striped aai-category-styles-table">
                 <thead>
                     <tr>
-                        <th><?php esc_html_e( 'Kategoria', 'agencyjnie-ai-images' ); ?></th>
-                        <th><?php esc_html_e( 'Styl artystyczny', 'agencyjnie-ai-images' ); ?></th>
+                        <th style="width:200px"><?php esc_html_e( 'Kategoria', 'agencyjnie-ai-images' ); ?></th>
+                        <th><?php esc_html_e( 'Dodatkowe instrukcje promptu', 'agencyjnie-ai-images' ); ?></th>
                     </tr>
                 </thead>
                 <tbody>
                     <?php foreach ( $categories as $cat ) :
-                        $current_style = isset( $mappings[ $cat->term_id ] ) ? $mappings[ $cat->term_id ] : '';
+                        $current = isset( $mappings[ $cat->term_id ] ) ? $mappings[ $cat->term_id ] : '';
                     ?>
                     <tr>
                         <td>
-                            <strong><?php echo esc_html( $cat->name ); ?></strong>
-                            <span class="aai-cat-count">(<?php echo esc_html( $cat->count ); ?> wpisów)</span>
+                            <strong><?php echo esc_html( $cat->name ); ?></strong><br>
+                            <span class="description"><?php echo esc_html( $cat->count ); ?> wpisów</span>
                         </td>
                         <td>
-                            <select name="category_styles[<?php echo esc_attr( $cat->term_id ); ?>]">
-                                <option value=""><?php esc_html_e( '— Użyj globalnego stylu —', 'agencyjnie-ai-images' ); ?></option>
-                                <?php foreach ( $all_styles as $key => $desc ) : ?>
-                                    <option value="<?php echo esc_attr( $key ); ?>" <?php selected( $current_style, $key ); ?>>
-                                        <?php echo esc_html( ucfirst( str_replace( '_', ' ', $key ) ) ); ?>
-                                    </option>
-                                <?php endforeach; ?>
-                            </select>
+                            <textarea
+                                name="category_styles[<?php echo esc_attr( $cat->term_id ); ?>]"
+                                rows="2"
+                                style="width:100%;font-size:13px;"
+                                placeholder="<?php esc_attr_e( 'Zostaw puste aby użyć globalnych ustawień...', 'agencyjnie-ai-images' ); ?>"
+                            ><?php echo esc_textarea( $current ); ?></textarea>
                         </td>
                     </tr>
                     <?php endforeach; ?>
                 </tbody>
             </table>
 
-            <?php submit_button( __( 'Zapisz style kategorii', 'agencyjnie-ai-images' ) ); ?>
+            <?php submit_button( __( 'Zapisz instrukcje', 'agencyjnie-ai-images' ) ); ?>
         </form>
     </div>
     <?php

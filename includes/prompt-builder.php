@@ -34,14 +34,10 @@ function aai_build_prompt( $post_id ) {
     $base_prompt    = aai_get_option( 'base_prompt', '' );
     $negative_prompt = aai_get_option( 'negative_prompt', '' );
 
-    // Check for category-specific style override
-    $category_style_key = function_exists( 'aai_get_category_style' ) ? aai_get_category_style( $post_id ) : null;
-    if ( $category_style_key ) {
-        $all_styles = aai_get_all_style_descriptions();
-        $style = isset( $all_styles[ $category_style_key ] ) ? $all_styles[ $category_style_key ] : aai_get_style_description();
-    } else {
-        $style = aai_get_style_description();
-    }
+    $style = aai_get_style_description();
+
+    // Additional prompt instructions per category
+    $category_prompt = function_exists( 'aai_get_category_style' ) ? aai_get_category_style( $post_id ) : null;
 
     $colors         = aai_get_colors_description();
     $aspect_ratio   = aai_get_option( 'aspect_ratio', '16:9' );
@@ -79,6 +75,11 @@ function aai_build_prompt( $post_id ) {
     // Proporcje
     $prompt_parts[] = sprintf( "Aspect ratio: %s", $aspect_ratio );
     
+    // Dodatkowe instrukcje per kategoria
+    if ( ! empty( $category_prompt ) ) {
+        $prompt_parts[] = sprintf( "Additional instructions for this category: %s", $category_prompt );
+    }
+
     // Negative prompt (instrukcja czego unikać)
     if ( ! empty( $negative_prompt ) ) {
         $prompt_parts[] = sprintf( "IMPORTANT - DO NOT INCLUDE / NEGATIVE PROMPT: %s", $negative_prompt );
